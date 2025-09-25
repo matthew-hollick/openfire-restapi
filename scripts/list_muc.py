@@ -247,8 +247,8 @@ def list_muc(host: str, token: str, service: str, type: str, insecure: bool, out
                             if 'participants' in occupants_result:
                                 if isinstance(occupants_result['participants'], list):
                                     occupants_list = occupants_result['participants']
-                                # Handle single participant case
-                                elif not isinstance(occupants_result['participants'], list) and occupants_result['participants']:
+                                # Handle single participant case (explicitly check for dict type)
+                                elif isinstance(occupants_result['participants'], dict):
                                     occupants_list = [occupants_result['participants']]
                             # Also try the 'occupants' key for backward compatibility
                             elif 'occupants' in occupants_result:
@@ -256,8 +256,8 @@ def list_muc(host: str, token: str, service: str, type: str, insecure: bool, out
                                     occupants_list = occupants_result['occupants']
                                 elif isinstance(occupants_result['occupants'], dict) and 'occupant' in occupants_result['occupants']:
                                     occupants_list = occupants_result['occupants']['occupant']
-                                    # Handle single occupant case
-                                    if not isinstance(occupants_list, list):
+                                    # Handle single occupant case (explicitly check for dict type)
+                                    if isinstance(occupants_list, dict):
                                         occupants_list = [occupants_list]
                         
                         # Display current occupants

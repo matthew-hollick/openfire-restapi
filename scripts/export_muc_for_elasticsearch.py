@@ -69,8 +69,8 @@ def _process_occupants(occupants_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         if 'participants' in occupants_data:
             if isinstance(occupants_data['participants'], list):
                 occupants_list = occupants_data['participants']
-            # Handle single participant case
-            elif not isinstance(occupants_data['participants'], list) and occupants_data['participants']:
+            # Handle single participant case (explicitly check for dict type)
+            elif isinstance(occupants_data['participants'], dict):
                 occupants_list = [occupants_data['participants']]
         # Also try the 'occupants' key for backward compatibility
         elif 'occupants' in occupants_data:
@@ -78,8 +78,8 @@ def _process_occupants(occupants_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                 occupants_list = occupants_data['occupants']
             elif isinstance(occupants_data['occupants'], dict) and 'occupant' in occupants_data['occupants']:
                 occupants_list = occupants_data['occupants']['occupant']
-                # Handle single occupant case
-                if not isinstance(occupants_list, list):
+                # Handle single occupant case (explicitly check for dict type)
+                if isinstance(occupants_list, dict):
                     occupants_list = [occupants_list]
     
     # Normalize each occupant entry
@@ -306,24 +306,6 @@ def export_muc(
         for room in rooms_list:
             if 'serviceName' not in room:
                 room['serviceName'] = service
-                
-        # Get occupant counts for each room
-        for room in rooms_list:
-            room_name = room.get("roomName", "")
-            try:
-                occupants_result = muc_api.get_room_users(room_name, service)
-                occupant_count = 0
-                
-                if isinstance(occupants_result, dict) and 'participants' in occupants_result:
-                    if isinstance(occupants_result['participants'], list):
-                        occupant_count = len(occupants_result['participants'])
-                    elif occupants_result['participants']:  # Single occupant
-                        occupant_count = 1
-                        
-                room["occupantsCount"] = occupant_count
-            except Exception:
-                # If there's an error, leave the default occupantsCount (usually 0)
-                pass
         
         # Format the output based on the requested format
         if output == "bulk":
