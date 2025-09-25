@@ -1,0 +1,3116 @@
+openapi: 3.0.1
+info:
+  title: Openfire REST API
+  description: This is the documentation for a REST API of the Openfire Real-time
+    communication server.
+  contact:
+    name: Ignite Realtime Foundation
+    url: https://www.igniterealtime.org
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.12.0
+servers:
+- url: /plugins
+security:
+- Secret key auth: []
+tags:
+- name: Clustering
+  description: Reporting the status of Openfire clustering
+- name: User Group
+  description: Managing Openfire user groupings.
+- name: Chat room
+  description: Managing Multi-User chat rooms.
+- name: Chat service
+  description: Managing Multi-User chat services.
+- name: Message
+  description: Sending (chat) messages to users.
+- name: Message Archive
+  description: Server-sided storage of chat messages.
+- name: Security Audit Log
+  description: Inspecting the security audit log.
+- name: Client Sessions
+  description: Managing live client sessions.
+- name: Statistics
+  description: Inspecting Openfire statistics.
+- name: System
+  description: Managing Openfire system configuration
+- name: Users
+  description: Managing Openfire users.
+- name: UserService (deprecated)
+  description: "Undocumented UserService endpoint, retained for backwards compatibility."
+paths:
+  /application.wadl/{path}:
+    get:
+      operationId: getExternalGrammar
+      parameters:
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        default:
+          description: default response
+          content:
+            application/xml: {}
+  /application.wadl:
+    get:
+      operationId: getWadl
+      responses:
+        default:
+          description: default response
+          content:
+            application/vnd.sun.wadl+xml: {}
+            application/xml: {}
+  /restapi/v1/clustering/nodes/{nodeId}:
+    get:
+      tags:
+      - Clustering
+      summary: Get a specific cluster node
+      description: Get a specific node of the cluster. Note that this endpoint can
+        only return data for remote nodes when the instance of Openfire that processes
+        this query has successfully joined the cluster.
+      operationId: getClusterNode
+      parameters:
+      - name: nodeId
+        in: path
+        description: The nodeID value for a particular node.
+        required: true
+        schema:
+          type: string
+        example: 52a89928-66f7-45fd-9bb8-096de07400ac
+      responses:
+        "200":
+          description: Retrieve a cluster node
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ClusterNodeEntity"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterNodeEntity"
+        "404":
+          description: The provided NodeID does not identify an existing cluster node.
+  /restapi/v1/clustering/nodes:
+    get:
+      tags:
+      - Clustering
+      summary: Get all cluster nodes
+      description: Get a list of all nodes of the cluster. Note that this endpoint
+        can only return data for remote nodes when the instance of Openfire that processes
+        this query has successfully joined the cluster.
+      operationId: getClusterNodes
+      responses:
+        "200":
+          description: Retrieve all cluster nodes
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ClusterNodeEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterNodeEntities"
+  /restapi/v1/clustering/status:
+    get:
+      tags:
+      - Clustering
+      summary: Get clustering status
+      description: Describes the point-in-time state of Openfire's clustering with
+        other servers
+      operationId: getClusteringStatus
+      responses:
+        "200":
+          description: Status returned
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ClusteringEntity"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusteringEntity"
+  /restapi/v1/groups:
+    get:
+      tags:
+      - User Group
+      summary: Get groups
+      description: Get a list of all user groups.
+      operationId: getGroups
+      responses:
+        "200":
+          description: All groups
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/GroupEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupEntities"
+    post:
+      tags:
+      - User Group
+      summary: Create group
+      description: Create a new user group.
+      operationId: createGroup
+      requestBody:
+        description: The group that needs to be created.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/GroupEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupEntity"
+        required: true
+      responses:
+        "201":
+          description: Group created.
+        "400":
+          description: "Group or group name missing, or invalid syntax for a property."
+        "409":
+          description: Group already exists.
+  /restapi/v1/groups/{groupName}:
+    get:
+      tags:
+      - User Group
+      summary: Get group
+      description: Get one specific user group by name.
+      operationId: getGroup
+      parameters:
+      - name: groupName
+        in: path
+        description: The name of the group that needs to be fetched.
+        required: true
+        schema:
+          type: string
+        example: Colleagues
+      responses:
+        "200":
+          description: The group.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/GroupEntity"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupEntity"
+        "404":
+          description: Group with this name not found.
+    put:
+      tags:
+      - User Group
+      summary: Update group
+      description: Updates / overwrites an existing user group. Note that the name
+        of the group cannot be changed.
+      operationId: updateGroup
+      parameters:
+      - name: groupName
+        in: path
+        description: The name of the group that needs to be fetched.
+        required: true
+        schema:
+          type: string
+        example: Colleagues
+      requestBody:
+        description: The new group definition that needs to overwrite the old definition.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/GroupEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupEntity"
+        required: true
+      responses:
+        "200":
+          description: Group updated.
+        "400":
+          description: "Group or group name missing, or name does not match existing\
+            \ group, or invalid syntax for a property."
+        "404":
+          description: Group with this name not found.
+    delete:
+      tags:
+      - User Group
+      summary: Delete group
+      description: Removes an existing user group.
+      operationId: deleteGroup
+      parameters:
+      - name: groupName
+        in: path
+        description: The name of the group that needs to be removed.
+        required: true
+        schema:
+          type: string
+        example: Colleagues
+      responses:
+        "200":
+          description: Group deleted.
+        "400":
+          description: Group not found.
+  /restapi/v1/chatrooms/{roomName}/{affiliation}/{jid}:
+    post:
+      tags:
+      - Chat room
+      summary: Add room affiliation
+      description: "Affiliates a single use to a multi-user chat room. Note that a\
+        \ user can only have one type of affiliation with a room. By affiliating a\
+        \ user to a room, any other pre-existing affiliation for that user is removed."
+      operationId: addMUCRoomAffiliation
+      parameters:
+      - name: servicename
+        in: query
+        description: The name of the MUC service that the MUC room is part of.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: jid
+        in: path
+        description: The (bare) JID of the entity that is to be affiliated.
+        required: true
+        schema:
+          type: string
+        example: john@example.org
+      - name: affiliation
+        in: path
+        description: "The type of affiliation. One of: 'admins', 'members', 'outcasts',\
+          \ 'owners' ."
+        required: true
+        schema:
+          pattern: (admins|members|outcasts|owners)
+          type: string
+        example: members
+      - name: roomName
+        in: path
+        description: The name of the MUC room to which an affiliation is to be added.
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: sendInvitations
+        in: query
+        description: Whether to send invitations to new admin users.
+        schema:
+          type: boolean
+          default: false
+        example: true
+      responses:
+        "201":
+          description: User to affiliate to the room.
+        "400":
+          description: Provided 'affiliations' value is invalid.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not allowed to perform this affiliation change.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+      - Chat room
+      summary: Remove room affiliation
+      description: Removes an affiliation of a user to a multi-user chat room.
+      operationId: deleteMUCRoomAffiliation
+      parameters:
+      - name: jid
+        in: path
+        description: The (bare) JID of the entity for which the room affiliation is
+          to be removed.
+        required: true
+        schema:
+          type: string
+        example: john@example.org
+      - name: servicename
+        in: query
+        description: The name of the MUC service that the MUC room is part of.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: affiliation
+        in: path
+        description: "The type of affiliation. One of: 'admins', 'members', 'outcasts',\
+          \ 'owners' ."
+        required: true
+        schema:
+          pattern: (admins|members|outcasts|owners)
+          type: string
+        example: members
+      - name: roomName
+        in: path
+        description: The name of the MUC room from which an affiliation is to be removed.
+        required: true
+        schema:
+          type: string
+        example: lobby
+      responses:
+        "200":
+          description: Affiliation removed from the room.
+        "400":
+          description: Provided 'affiliations' value is invalid.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not allowed to remove this affiliation.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Applying this affiliation change would cause a room conflict.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms/{roomName}/{affiliation}/group/{groupname}:
+    post:
+      tags:
+      - Chat room
+      summary: Add room affiliations
+      description: "Affiliate all members of an Openfire user group to a multi-user\
+        \ chat room. Note that a user can only have one type of affiliation with a\
+        \ room. By affiliating a user to a room, any other pre-existing affiliation\
+        \ for that user is removed."
+      operationId: addMUCRoomAffiliationGroup
+      parameters:
+      - name: servicename
+        in: query
+        description: The name of the MUC service that the MUC room is part of.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: groupname
+        in: path
+        description: The name of the user group from which all members will be affiliated
+          to the room.
+        required: true
+        schema:
+          type: string
+        example: Operators
+      - name: affiliation
+        in: path
+        description: "The type of affiliation. One of: 'admins', 'members', 'outcasts',\
+          \ 'owners' ."
+        required: true
+        schema:
+          pattern: (admins|members|outcasts|owners)
+          type: string
+        example: members
+      - name: roomName
+        in: path
+        description: The name of the MUC room to which affiliations are to be added.
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: sendInvitations
+        in: query
+        description: Whether to send invitations to new admin users.
+        schema:
+          type: boolean
+          default: false
+        example: true
+      responses:
+        "201":
+          description: Affiliations added to the room.
+        "400":
+          description: Provided 'affiliations' value is invalid.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not allowed to perform this affiliation change.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+      - Chat room
+      summary: Remove room affiliations
+      description: Removes affiliation for all members of an Openfire user group from
+        a multi-user chat room.
+      operationId: deleteMUCRoomAffiliationGroup
+      parameters:
+      - name: groupname
+        in: path
+        description: The name of the user group from which all members will get their
+          room affiliation removed.
+        required: true
+        schema:
+          type: string
+        example: Operators
+      - name: servicename
+        in: query
+        description: The name of the MUC service that the MUC room is part of.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: affiliation
+        in: path
+        description: "The type of affiliation. One of: 'admins', 'members', 'outcasts',\
+          \ 'owners' ."
+        required: true
+        schema:
+          pattern: (admins|members|outcasts|owners)
+          type: string
+        example: members
+      - name: roomName
+        in: path
+        description: The name of the MUC room from which affiliations are to be removed.
+        required: true
+        schema:
+          type: string
+        example: lobby
+      responses:
+        "200":
+          description: Affiliations removed from the room.
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Provided 'affiliations' value is invalid.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not allowed to remove this affiliation.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Applying this affiliation change would cause a room conflict.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms/{roomName}/{affiliation}:
+    get:
+      tags:
+      - Chat room
+      summary: All room affiliations
+      description: Retrieves a list of JIDs for all affiliated users of a multi-user
+        chat room.
+      operationId: getAffiliations
+      parameters:
+      - name: servicename
+        in: query
+        description: The name of the MUC service that the MUC room is part of.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: roomName
+        in: path
+        description: The name of the MUC room for which to return affiliations.
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: affiliation
+        in: path
+        description: "The type of affiliation. One of: 'admins', 'members', 'outcasts',\
+          \ 'owners' ."
+        required: true
+        schema:
+          pattern: (admins|members|outcasts|owners)
+          type: string
+        example: members
+      responses:
+        "200":
+          description: Affiliated user list retrieved.
+        "400":
+          description: Provided 'affiliations' value is invalid.
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+      - Chat room
+      summary: Replace room affiliations
+      description: "Replaces the list of users in a multi-user chat room with a specific\
+        \ affiliation with a new list of users. Note that a user can only have one\
+        \ type of affiliation with a room. By affiliating a user to a room, any other\
+        \ pre-existing affiliation for that user is removed."
+      operationId: replaceMUCRoomAffiliation
+      parameters:
+      - name: servicename
+        in: query
+        description: The name of the MUC service that the MUC room is part of.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: roomName
+        in: path
+        description: The name of the MUC room of which affiliations are to be replaced.
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: affiliation
+        in: path
+        description: "The type of affiliation. One of: 'admins', 'members', 'outcasts',\
+          \ 'owners' ."
+        required: true
+        schema:
+          pattern: (admins|members|outcasts|owners)
+          type: string
+        example: members
+      - name: sendInvitations
+        in: query
+        description: Whether to send invitations to new admin users.
+        schema:
+          type: boolean
+          default: false
+        example: true
+      requestBody:
+        description: The new list of users with this particular affiliation.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/AffiliatedEntities"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AffiliatedEntities"
+        required: true
+      responses:
+        "201":
+          description: Affiliations of the room have been replaced.
+        "400":
+          description: "Provided values cannot be parsed as JIDs, or provided 'affiliations'\
+            \ value is invalid."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not allowed to perform this affiliation change.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+      - Chat room
+      summary: Add room affiliations
+      description: "Affiliatione multiple users to a particular multi-user chat room\
+        \ (without removing existing affiliated users of that type). Note that a user\
+        \ can only have one type of affiliation with a room. By affiliating a user\
+        \ to a room, any other pre-existing affiliation for that user is removed."
+      operationId: addMUCRoomAffiliations
+      parameters:
+      - name: servicename
+        in: query
+        description: The name of the MUC service that the MUC room is part of.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: roomName
+        in: path
+        description: The name of the MUC room to which users are to be affiliated.
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: affiliation
+        in: path
+        description: "The type of affiliation. One of: 'admins', 'members', 'outcasts',\
+          \ 'owners' ."
+        required: true
+        schema:
+          pattern: (admins|members|outcasts|owners)
+          type: string
+        example: members
+      - name: sendInvitations
+        in: query
+        description: Whether to send invitations to new admin users.
+        schema:
+          type: boolean
+          default: false
+        example: true
+      requestBody:
+        description: The list of users to affiliate to the room.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/AffiliatedEntities"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AffiliatedEntities"
+        required: true
+      responses:
+        "201":
+          description: Users have been affiliated to the room.
+        "400":
+          description: "Provided values cannot be parsed as JIDs, or provided 'affiliations'\
+            \ value is invalid."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not allowed to perform this affiliation change.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms:
+    get:
+      tags:
+      - Chat room
+      summary: Get chat rooms
+      description: Get a list of all multi-user chat rooms of a particular chat room
+        service.
+      operationId: getMUCRooms
+      parameters:
+      - name: servicename
+        in: query
+        description: The name of the MUC service for which to return all chat rooms.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: type
+        in: query
+        description: "Room type-based filter: 'all' or 'public'"
+        schema:
+          type: string
+          default: public
+      - name: search
+        in: query
+        description: |-
+          Search/Filter by room name.
+          This act like the wildcard search %String%
+        schema:
+          type: string
+        example: conference
+      - name: expandGroups
+        in: query
+        description: "For all groups defined in owners, admins, members and outcasts,\
+          \ list individual members instead of the group name."
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          description: All chat rooms
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/MUCRoomEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MUCRoomEntities"
+        "401":
+          description: Web service authentication failed.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: MUC service does not exist or is not accessible.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+      - Chat room
+      summary: Create chat room
+      description: Create a new multi-user chat room.
+      operationId: createMUCRoom
+      parameters:
+      - name: servicename
+        in: query
+        description: The name of the MUC service in which to create a chat room.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: sendInvitations
+        in: query
+        description: Whether to send invitations to affiliated users.
+        schema:
+          type: boolean
+          default: false
+        example: true
+      requestBody:
+        description: The MUC room that needs to be created.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/MUCRoomEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MUCRoomEntity"
+        required: true
+      responses:
+        "201":
+          description: Room created.
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Room creation is not permitted.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: MUC Service does not exist or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "Room already exists, or another conflict occurred while creating\
+            \ the room."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms/bulk:
+    post:
+      tags:
+      - Chat room
+      summary: Create multiple chat rooms
+      description: Create a number of new multi-user chat rooms.
+      operationId: createMUCRooms
+      parameters:
+      - name: servicename
+        in: query
+        description: The name of the MUC service in which to create a chat room.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: sendInvitations
+        in: query
+        description: Whether to send invitations to newly affiliated users.
+        schema:
+          type: boolean
+          default: false
+        example: true
+      requestBody:
+        description: The MUC rooms that need to be created.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/MUCRoomEntities"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MUCRoomEntities"
+        required: true
+      responses:
+        "200":
+          description: Request has been processed. Results are reported in the response.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/RoomCreationResultEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomCreationResultEntities"
+        "401":
+          description: Web service authentication failed.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: MUC Service does not exist or is not accessible.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms/{roomName}:
+    get:
+      tags:
+      - Chat room
+      summary: Get chat room
+      description: Get information of a specific multi-user chat room.
+      operationId: getMUCRoomJSON2
+      parameters:
+      - name: roomName
+        in: path
+        description: The name of the MUC room to return.
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: servicename
+        in: query
+        description: The name of the MUC service for which to return a chat room.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: expandGroups
+        in: query
+        description: "For all groups defined in owners, admins, members and outcasts,\
+          \ list individual members instead of the group name."
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          description: The chat room
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/MUCRoomEntity"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MUCRoomEntity"
+        "401":
+          description: Web service authentication failed.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+      - Chat room
+      summary: Update chat room
+      description: Updates an existing multi-user chat room.
+      operationId: updateMUCRoom
+      parameters:
+      - name: roomName
+        in: path
+        description: The name of the chat room that needs to be updated
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: servicename
+        in: query
+        description: The name of the MUC service in which to update a chat room.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      - name: sendInvitations
+        in: query
+        description: Whether to send invitations to newly affiliated users.
+        schema:
+          type: boolean
+          default: false
+        example: true
+      requestBody:
+        description: The new MUC room definition that needs to overwrite the old definition.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/MUCRoomEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MUCRoomEntity"
+        required: true
+      responses:
+        "200":
+          description: Room updated.
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Room update/create is not permitted.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: MUC Service does not exist or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "This update causes a conflict, possibly with another existing\
+            \ room."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+      - Chat room
+      summary: Delete chat room
+      description: Removes an existing multi-user chat room.
+      operationId: deleteMUCRoom
+      parameters:
+      - name: roomName
+        in: path
+        description: The name of the MUC room to delete.
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: servicename
+        in: query
+        description: The name of the MUC service from which to delete a chat room.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      responses:
+        "200":
+          description: Room deleted.
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms/{roomName}/chathistory:
+    get:
+      tags:
+      - Chat room
+      summary: Get room history
+      description: Get messages that have been exchanged in a specific multi-user
+        chat room.
+      operationId: getMUCRoomHistory
+      parameters:
+      - name: roomName
+        in: path
+        description: The name of the chat room for which to return message history
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: servicename
+        in: query
+        description: The name of the chat room's MUC service.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      responses:
+        "200":
+          description: The chat room message history
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/MUCRoomMessageEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MUCRoomMessageEntities"
+        "401":
+          description: Web service authentication failed.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms/{roomName}/occupants:
+    get:
+      tags:
+      - Chat room
+      summary: Get room occupants
+      description: Get all occupants of a specific multi-user chat room.
+      operationId: getMUCRoomOccupants
+      parameters:
+      - name: roomName
+        in: path
+        description: The name of the chat room for which to return occupants
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: servicename
+        in: query
+        description: The name of the chat room's MUC service.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      responses:
+        "200":
+          description: The chat room participants
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/OccupantEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OccupantEntities"
+        "401":
+          description: Web service authentication failed.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms/{roomName}/participants:
+    get:
+      tags:
+      - Chat room
+      summary: Get room participants
+      description: Get all participants of a specific multi-user chat room.
+      operationId: getMUCRoomParticipants
+      parameters:
+      - name: roomName
+        in: path
+        description: The name of the chat room for which to return participants
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: servicename
+        in: query
+        description: The name of the chat room's MUC service.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      responses:
+        "200":
+          description: The chat room participants
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ParticipantEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParticipantEntities"
+        "401":
+          description: Web service authentication failed.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms/{roomName}/invite/{jid}:
+    post:
+      tags:
+      - Chat room
+      summary: Invite user or group
+      description: Invites a user or group to join a specific multi-user chat room.
+      operationId: inviteUserOrGroupToMUCRoom
+      parameters:
+      - name: roomName
+        in: path
+        description: The name of the chat room in which to invite a user or group
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: jid
+        in: path
+        description: The JID of the entity to invite into the room
+        required: true
+        schema:
+          type: string
+        example: john@example.org
+      - name: servicename
+        in: query
+        description: The name of the chat room's MUC service.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      requestBody:
+        description: The invitation message to send and whom to send it to.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/MUCInvitationEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MUCInvitationEntity"
+        required: true
+      responses:
+        "200":
+          description: Invitation sent
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not allowed to invite a user to this room.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatrooms/{roomName}/invite:
+    post:
+      tags:
+      - Chat room
+      summary: Invite a collection of users and/or groups
+      description: Invites a collection of users and/or groups to join a specific
+        multi-user chat room.
+      operationId: inviteUsersAndOrGroupsToMUCRoom
+      parameters:
+      - name: roomName
+        in: path
+        description: The name of the chat room in which to invite a user or group
+        required: true
+        schema:
+          type: string
+        example: lobby
+      - name: servicename
+        in: query
+        description: The name of the chat room's MUC service.
+        schema:
+          type: string
+          default: conference
+        example: conference
+      requestBody:
+        description: The invitation message to send and whom to send it to.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/MUCInvitationsEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MUCInvitationsEntity"
+        required: true
+      responses:
+        "200":
+          description: Invitation sent
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not allowed to invite a user or group to this room.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The chat room (or its service) can not be found or is not accessible.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/chatservices:
+    get:
+      tags:
+      - Chat service
+      summary: Get chat services
+      description: Get a list of all multi-user chat services.
+      operationId: getMUCServices
+      responses:
+        "200":
+          description: All chat services
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/MUCServiceEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MUCServiceEntities"
+        "401":
+          description: Web service authentication failed.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+      - Chat service
+      summary: Create new multi-user chat service
+      description: Create a new multi-user chat service.
+      operationId: createMUCService
+      requestBody:
+        description: The MUC service that needs to be created.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/MUCServiceEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MUCServiceEntity"
+        required: true
+      responses:
+        "201":
+          description: Service created.
+        "401":
+          description: Web service authentication failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Service creation is not permitted.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "Service already exists, or another conflict occurred while\
+            \ creating the service."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Unexpected, generic error condition."
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /restapi/v1/messages/users:
+    post:
+      tags:
+      - Message
+      summary: Broadcast
+      description: Sends a message to all users that are currently online.
+      operationId: sendBroadcastMessage
+      requestBody:
+        description: The message that is to be broadcast.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/MessageEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageEntity"
+        required: true
+      responses:
+        "201":
+          description: Message is sent.
+        "400":
+          description: The message content is empty or missing.
+  /restapi/v1/archive/messages/unread/{jid}:
+    get:
+      tags:
+      - Message Archive
+      summary: Unread message count
+      description: Gets a count of messages that haven't been delivered to the user
+        yet.
+      operationId: getUnReadMessagesCount
+      parameters:
+      - name: jid
+        in: path
+        description: The (bare) JID of the user for which the unread message count
+          needs to be fetched.
+        required: true
+        schema:
+          type: string
+        example: john@example.org
+      responses:
+        "200":
+          description: A message count
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/MsgArchiveEntity"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MsgArchiveEntity"
+  /restapi/v1/logs/security:
+    get:
+      tags:
+      - Security Audit Log
+      summary: Get log entries
+      description: Retrieve entries from the security audit log.
+      operationId: getSecurityAuditLogs
+      parameters:
+      - name: username
+        in: query
+        description: The name of a user for which to filter events.
+        schema:
+          type: string
+        example: admin
+      - name: offset
+        in: query
+        description: Number of log entries to skip.
+        schema:
+          type: integer
+          format: int32
+        example: 0
+      - name: limit
+        in: query
+        description: Number of log entries to retrieve.
+        schema:
+          type: integer
+          format: int32
+          default: 100
+        example: 100
+      - name: startTime
+        in: query
+        description: Oldest timestamp of range of logs to retrieve. 0 for 'forever'.
+        schema:
+          type: integer
+          format: int64
+      - name: endTime
+        in: query
+        description: Most recent timestamp of range of logs to retrieve. 0 for 'now'.
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: The requested log entries.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/SecurityAuditLogs"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityAuditLogs"
+        "403":
+          description: The audit log is not readable (configured to be write-only).
+  /restapi/v1/sessions:
+    get:
+      tags:
+      - Client Sessions
+      summary: Get all sessions
+      description: Retrieve all live client sessions.
+      operationId: getAllSessions
+      responses:
+        "200":
+          description: The client sessions currently active in Openfire.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/SessionEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionEntities"
+  /restapi/v1/sessions/{username}:
+    get:
+      tags:
+      - Client Sessions
+      summary: Get user sessions
+      description: Retrieve all live client sessions for a particular user.
+      operationId: getUserSessions
+      parameters:
+      - name: username
+        in: path
+        description: The name of a user for which to return client sessions.
+        required: true
+        schema:
+          type: string
+        example: johndoe
+      responses:
+        "200":
+          description: The client sessions for one particular user that are currently
+            active in Openfire.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/SessionEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionEntities"
+    delete:
+      tags:
+      - Client Sessions
+      summary: Kick user sessions
+      description: Close/disconnect all live client sessions for a particular user.
+      operationId: kickSession
+      parameters:
+      - name: username
+        in: path
+        description: The name of a user for which to drop all client sessions.
+        required: true
+        schema:
+          type: string
+        example: johndoe
+      responses:
+        "200":
+          description: The client sessions for one particular user have been closed.
+  /restapi/v1/system/statistics/sessions:
+    get:
+      tags:
+      - Statistics
+      summary: Get client session counts
+      description: Retrieve statistics on the amount of client sessions.
+      operationId: getCCS
+      responses:
+        "200":
+          description: The requested statistics.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/SessionsCount"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionsCount"
+  /restapi/v1/system/properties:
+    get:
+      tags:
+      - System
+      summary: Get system properties
+      description: Get all Openfire system properties.
+      operationId: getSystemProperties
+      responses:
+        "200":
+          description: The system properties.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/SystemProperties"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemProperties"
+    post:
+      tags:
+      - System
+      summary: Create system property
+      description: Create a new Openfire system property. Will overwrite a pre-existing
+        system property that uses the same name.
+      operationId: createSystemProperty
+      requestBody:
+        description: The system property to create.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/SystemProperty"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemProperty"
+        required: true
+      responses:
+        "201":
+          description: The system property is created.
+  /restapi/v1/system/properties/{propertyKey}:
+    get:
+      tags:
+      - System
+      summary: Get system property
+      description: Get a specific Openfire system property.
+      operationId: getSystemProperty
+      parameters:
+      - name: propertyKey
+        in: path
+        description: The name of the system property to return.
+        required: true
+        schema:
+          type: string
+        example: foo.bar.xyz
+      responses:
+        "200":
+          description: The requested system property.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/SystemProperty"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemProperty"
+        "404":
+          description: The system property could not be found.
+    put:
+      tags:
+      - System
+      summary: Update system property
+      description: Updates an existing Openfire system property.
+      operationId: updateSystemProperty
+      parameters:
+      - name: propertyKey
+        in: path
+        description: The name of the system property to update.
+        required: true
+        schema:
+          type: string
+        example: foo.bar.xyz
+      requestBody:
+        description: The new system property definition that replaced an existing
+          definition.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/SystemProperty"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemProperty"
+        required: true
+      responses:
+        "200":
+          description: The system property is updated.
+        "400":
+          description: The provided system property does not match the name in the
+            URL.
+        "404":
+          description: The system property could not be found.
+    delete:
+      tags:
+      - System
+      summary: Remove system property
+      description: Removes an existing Openfire system property.
+      operationId: deleteSystemProperty
+      parameters:
+      - name: propertyKey
+        in: path
+        description: The name of the system property to delete.
+        required: true
+        schema:
+          type: string
+        example: foo.bar.xyz
+      responses:
+        "200":
+          description: The system property is deleted.
+        "404":
+          description: The system property could not be found.
+  /restapi/v1/system/liveness:
+    get:
+      tags:
+      - System
+      summary: Perform all liveness checks
+      description: "Detects if Openfire has reached a state that it cannot recover\
+        \ from, except for with a restart, based on every liveness check that it has\
+        \ implemented."
+      operationId: liveness
+      responses:
+        "200":
+          description: The system is live.
+        "503":
+          description: "At least one liveness check failed: the system is determined\
+            \ to not be alive."
+  /restapi/v1/system/liveness/deadlock:
+    get:
+      tags:
+      - System
+      summary: Perform 'deadlock' liveness check.
+      description: Detects if Openfire has reached a state that it cannot recover
+        from because of a deadlock.
+      operationId: livenessDeadlock
+      responses:
+        "200":
+          description: The system is live.
+        "503":
+          description: A deadlock is detected.
+  /restapi/v1/system/liveness/properties:
+    get:
+      tags:
+      - System
+      summary: Perform 'properties' liveness check.
+      description: Detects if Openfire has reached a state that it cannot recover
+        from because a system property change requires a restart to take effect.
+      operationId: livenessSystemProperties
+      responses:
+        "200":
+          description: The system is live.
+        "503":
+          description: One or more system property changes that require a server restart
+            have been detected.
+  /restapi/v1/system/readiness:
+    get:
+      tags:
+      - System
+      summary: Perform all readiness checks
+      description: "Detects if Openfire is in a state where it is ready to process\
+        \ traffic, based on every readiness check that it has implemented."
+      operationId: readiness
+      responses:
+        "200":
+          description: The system is ready.
+        "503":
+          description: "At least one readiness check failed: the system is determined\
+            \ to not be able to process traffic."
+  /restapi/v1/system/readiness/cluster:
+    get:
+      tags:
+      - System
+      summary: Perform 'cluster' readiness check
+      description: Detects if the cluster functionality has finished starting (or
+        is disabled).
+      operationId: readinessCluster
+      responses:
+        "200":
+          description: The system is ready.
+        "503":
+          description: "Clustering functionality is enabled, but has not finished\
+            \ starting up yet."
+  /restapi/v1/system/readiness/connections:
+    get:
+      tags:
+      - System
+      summary: Perform 'connections' readiness check
+      description: Detects if Openfire is ready to accept connection requests.
+      operationId: readinessConnections
+      parameters:
+      - name: connectionType
+        in: query
+        description: "Optional. Use to limit the check to one particular connection\
+          \ type. One of: SOCKET_S2S, SOCKET_C2S, BOSH_C2S, WEBADMIN, COMPONENT, CONNECTION_MANAGER"
+        schema:
+          type: string
+        example: SOCKET_C2S
+      - name: encrypted
+        in: query
+        description: "Check the encrypted (true) or unencrypted (false) variant of\
+          \ the connection type. Only used in combination with 'connectionType', as\
+          \ without it, all types and both encrypted and unencrypted are checked."
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The system is ready.
+        "400":
+          description: The provided connectionType value is invalid.
+        "503":
+          description: Openfire currently does not accept (all) connections.
+  /restapi/v1/system/readiness/plugins:
+    get:
+      tags:
+      - System
+      summary: Perform 'plugins' readiness check
+      description: Detects if Openfire has finished starting its plugins.
+      operationId: readinessPlugins
+      responses:
+        "200":
+          description: The system is ready.
+        "503":
+          description: Plugins have not all been started yet.
+  /restapi/v1/system/readiness/server:
+    get:
+      tags:
+      - System
+      summary: Perform 'server started' readiness check
+      description: Detects if Openfire's core service has been started.
+      operationId: readinessServerStart
+      responses:
+        "200":
+          description: The system is ready.
+        "503":
+          description: The Openfire service has not finished starting up yet.
+  /restapi/v1/users/{username}/groups/{groupName}:
+    post:
+      tags:
+      - Users
+      summary: Add user to group
+      description: "Add a particular user to a particular group. When the group that\
+        \ does not exist, it will be automatically created if possible."
+      operationId: addUserToGroup
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user that is to be added to a group.
+        required: true
+        schema:
+          type: string
+      - name: groupName
+        in: path
+        description: The name of the group that the user is to be added to.
+        required: true
+        schema:
+          type: string
+      responses:
+        "201":
+          description: The user was added to the groups.
+        "400":
+          description: When the username cannot be parsed into a JID.
+    delete:
+      tags:
+      - Users
+      summary: Delete user from group
+      description: Removes a user from a group.
+      operationId: deleteUserFromGroup
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user that is to be removed from a group.
+        required: true
+        schema:
+          type: string
+      - name: groupName
+        in: path
+        description: The name of the group that the user is to be removed from.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The user was taken out of the group.
+        "404":
+          description: The group could not be found.
+  /restapi/v1/users/{username}/groups:
+    get:
+      tags:
+      - Users
+      summary: Get user's groups
+      description: Retrieve names of all groups that a particular user is in.
+      operationId: getUserGroups
+      parameters:
+      - name: username
+        in: path
+        description: The username for user for which to return group names.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The names of the groups that the user is in.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/UserGroupsEntity"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroupsEntity"
+    post:
+      tags:
+      - Users
+      summary: Add user to groups
+      description: "Add a particular user to a collection of groups. When a group\
+        \ that is provided does not exist, it will be automatically created if possible."
+      operationId: addUserToGroups
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user that is to be added to groups.
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: A collection of names for groups that the user is to be added
+          to.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/UserGroupsEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserGroupsEntity"
+        required: true
+      responses:
+        "201":
+          description: The user was added to all groups.
+        "400":
+          description: When the username cannot be parsed into a JID.
+    delete:
+      tags:
+      - Users
+      summary: Delete user from groups
+      description: Removes a user from a collection of groups.
+      operationId: deleteUserFromGroups
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user that is to be removed from a group.
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: A collection of names for groups from which the user is to be
+          removed.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/UserGroupsEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserGroupsEntity"
+        required: true
+      responses:
+        "200":
+          description: The user was taken out of the group.
+        "404":
+          description: One or more groups could not be found.
+  /restapi/v1/lockouts/{username}:
+    post:
+      tags:
+      - Users
+      summary: Lock user out
+      description: Lockout / ban the user from the chat server. The user will be kicked
+        if the user is online.
+      operationId: disableUser
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user that is to be locked out.
+        required: true
+        schema:
+          type: string
+      responses:
+        "201":
+          description: The user was locked out.
+        "404":
+          description: No user of with this username exists.
+    delete:
+      tags:
+      - Users
+      summary: Unlock user
+      description: Removes a previously applied lockout / ban of a user.
+      operationId: enableUser
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user for which the lockout is to be undone.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: User is unlocked.
+        "404":
+          description: No user of with this username exists.
+  /restapi/v1/users/{username}/roster:
+    get:
+      tags:
+      - Users
+      summary: Retrieve user roster
+      description: Get a list of all roster entries (buddies / contact list) of a
+        particular user.
+      operationId: getUserRoster
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user for which the retrieve the roster entries.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: All roster entries
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/RosterEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RosterEntities"
+        "404":
+          description: No user of with this username exists.
+    post:
+      tags:
+      - Users
+      summary: Create roster entry
+      description: Add a roster entry to the roster (buddies / contact list) of a
+        particular user.
+      operationId: createRoster
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user for which the add a roster entry.
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: The definition of the roster entry that is to be added.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/RosterItemEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RosterItemEntity"
+        required: true
+      responses:
+        "201":
+          description: The entry was added to the roster.
+        "400":
+          description: A roster entry cannot be added to a 'shared group' (try removing
+            group names from the roster entry and try again).
+        "404":
+          description: No user of with this username exists.
+        "409":
+          description: A roster entry already exists for the provided contact JID.
+  /restapi/v1/users/{username}/roster/{rosterJid}:
+    put:
+      tags:
+      - Users
+      summary: Update roster entry
+      description: Changes a roster entry on the roster (buddies / contact list) of
+        a particular user.
+      operationId: updateRoster
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user for which the update a roster entry.
+        required: true
+        schema:
+          type: string
+      - name: rosterJid
+        in: path
+        description: The JID of the entry/contact to update.
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: The updated definition of the roster entry.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/RosterItemEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RosterItemEntity"
+        required: true
+      responses:
+        "200":
+          description: The roster entry was updated.
+        "400":
+          description: A roster entry cannot be added with a 'shared group'.
+        "404":
+          description: No user of with this username exists.
+        "409":
+          description: A roster entry already exists for the provided contact JID.
+    delete:
+      tags:
+      - Users
+      summary: Remove roster entry
+      description: Removes one of the roster entries (contacts) of a particular user.
+      operationId: deleteRoster
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user for which the remove a roster entry.
+        required: true
+        schema:
+          type: string
+      - name: rosterJid
+        in: path
+        description: The JID of the entry/contact to remove.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Entry removed
+        "400":
+          description: A roster entry cannot be removed from a 'shared group'.
+        "404":
+          description: "No user of with this username exists, or its roster did not\
+            \ contain this entry."
+  /restapi/v1/users:
+    get:
+      tags:
+      - Users
+      summary: Get users
+      description: Retrieve all users defined in Openfire (with optional filtering).
+      operationId: getUsers
+      parameters:
+      - name: search
+        in: query
+        description: Search/Filter by username. This act like the wildcard search
+          %String%
+        schema:
+          type: string
+      - name: propertyKey
+        in: query
+        description: Filter by a user property name.
+        schema:
+          type: string
+      - name: propertyValue
+        in: query
+        description: "Filter by user property value. Note: This can only be used in\
+          \ combination with a property name parameter"
+        schema:
+          type: string
+      responses:
+        "200":
+          description: A list of Openfire users.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/UserEntities"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEntities"
+    post:
+      tags:
+      - Users
+      summary: Create user
+      description: Add a new user to Openfire.
+      operationId: createUser
+      requestBody:
+        description: The definition of the user to create.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/UserEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserEntity"
+        required: true
+      responses:
+        "201":
+          description: The user was created.
+  /restapi/v1/users/{username}:
+    get:
+      tags:
+      - Users
+      summary: Get user
+      description: Retrieve a user that is defined in Openfire.
+      operationId: getUser
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user to return.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: A list of Openfire users.
+          content:
+            application/xml:
+              schema:
+                $ref: "#/components/schemas/UserEntity"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEntity"
+        "404":
+          description: No user with that username was found.
+    put:
+      tags:
+      - Users
+      summary: Update user
+      description: Update an existing user in Openfire.
+      operationId: updateUser
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user to update.
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: The definition update of the user.
+        content:
+          application/xml:
+            schema:
+              $ref: "#/components/schemas/UserEntity"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserEntity"
+        required: true
+      responses:
+        "200":
+          description: The user was updated.
+    delete:
+      tags:
+      - Users
+      summary: Delete user
+      description: Remove an existing user from Openfire.
+      operationId: deleteUser
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user to remove.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The user was removed.
+        "404":
+          description: No user with that username was found.
+  /restapi/v1/userservice:
+    get:
+      tags:
+      - UserService (deprecated)
+      operationId: userSerivceRequest
+      responses:
+        default:
+          description: default response
+          content:
+            '*/*': {}
+    post:
+      tags:
+      - UserService (deprecated)
+      operationId: userSerivcePostRequest
+      responses:
+        default:
+          description: default response
+          content:
+            '*/*': {}
+  /restapi/v1/users/{username}/vcard:
+    get:
+      tags:
+      - Users
+      summary: Get user's vCard
+      description: Retrieves the vCard for a particular user.
+      operationId: getUserVcard
+      parameters:
+      - name: username
+        in: path
+        description: The username for user for which to return the vcard.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The vCard of the user
+        "204":
+          description: No vCard found.
+    put:
+      tags:
+      - Users
+      summary: Update vCard
+      description: Creates or changes a vCard of a particular user.
+      operationId: setUserVcard
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user for which the update a roster entry.
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: The updated definition of the vCard.
+        content:
+          application/xml:
+            schema:
+              type: string
+        required: true
+      responses:
+        "200":
+          description: The vCard was updated/created.
+        "400":
+          description: Provided data could not be parsed.
+        "409":
+          description: "Cannot change vCard, as Openfire is configured to have read-only\
+            \ vCards."
+    delete:
+      tags:
+      - Users
+      summary: Delete vCard
+      description: Removes a vCard of a particular user.
+      operationId: deleteUserVcard
+      parameters:
+      - name: username
+        in: path
+        description: The username of the user for which the update a roster entry.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The vCard was deleted.
+        "409":
+          description: "Cannot delete vCard, as Openfire is configured to have read-only\
+            \ vCards."
+components:
+  schemas:
+    ClusterNodeEntity:
+      type: object
+      properties:
+        hostName:
+          type: string
+        nodeID:
+          type: string
+        joinedTime:
+          type: string
+          format: date-time
+        seniorMember:
+          type: boolean
+      xml:
+        name: clusterNode
+    ClusterNodeEntities:
+      type: object
+      properties:
+        clusterNodes:
+          type: array
+          xml:
+            name: clusterNode
+          items:
+            $ref: "#/components/schemas/ClusterNodeEntity"
+      xml:
+        name: clusterNodes
+    ClusteringEntity:
+      type: object
+      properties:
+        status:
+          type: string
+      xml:
+        name: clustering
+    GroupEntity:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the group
+          example: UserGroup1
+        description:
+          type: string
+          description: Description of the group
+          example: My group of users
+        shared:
+          type: boolean
+          description: Whether the group should automatically appear in the rosters
+            of the users
+          example: false
+        admins:
+          type: array
+          description: List of admins of the group
+          xml:
+            wrapped: true
+          items:
+            type: string
+            example: jane.smith
+            xml:
+              name: admin
+        members:
+          type: array
+          description: List of members of the group
+          xml:
+            wrapped: true
+          items:
+            type: string
+            example: john.jones
+            xml:
+              name: member
+      xml:
+        name: group
+    GroupEntities:
+      type: object
+      properties:
+        groups:
+          type: array
+          xml:
+            name: group
+          items:
+            $ref: "#/components/schemas/GroupEntity"
+      xml:
+        name: groups
+    ErrorResponse:
+      type: object
+      properties:
+        resource:
+          type: string
+        message:
+          type: string
+        exception:
+          type: string
+        exceptionStack:
+          type: string
+      xml:
+        name: error
+    AffiliatedEntities:
+      type: object
+    MUCRoomEntity:
+      type: object
+      properties:
+        roomName:
+          type: string
+        description:
+          type: string
+        password:
+          type: string
+        subject:
+          type: string
+        naturalName:
+          type: string
+        maxUsers:
+          type: integer
+          format: int32
+        creationDate:
+          type: string
+          format: date-time
+        modificationDate:
+          type: string
+          format: date-time
+        persistent:
+          type: boolean
+        publicRoom:
+          type: boolean
+        registrationEnabled:
+          type: boolean
+        canAnyoneDiscoverJID:
+          type: boolean
+        canOccupantsChangeSubject:
+          type: boolean
+        canOccupantsInvite:
+          type: boolean
+        canChangeNickname:
+          type: boolean
+        logEnabled:
+          type: boolean
+        loginRestrictedToNickname:
+          type: boolean
+        membersOnly:
+          type: boolean
+        moderated:
+          type: boolean
+        allowPM:
+          type: string
+          description: "Defines who is allowed to send private messages to other occupants.\
+            \ Must be one of \"anyone\", \"participants\", \"moderators\" or \"none\"\
+            ."
+          example: anyone
+        broadcastPresenceRoles:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: broadcastPresenceRole
+        owners:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: owner
+        ownerGroups:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: ownerGroup
+        admins:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: admin
+        adminGroups:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: adminGroup
+        members:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: member
+        memberGroups:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: memberGroup
+        outcasts:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: outcast
+        outcastGroups:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: outcastGroup
+      xml:
+        name: chatRoom
+    RoomCreationResultEntities:
+      type: object
+      properties:
+        success:
+          type: array
+          description: All creation results of type success
+          xml:
+            wrapped: true
+          items:
+            $ref: "#/components/schemas/RoomCreationResultEntity"
+        failure:
+          type: array
+          description: All creation results of type failure
+          xml:
+            wrapped: true
+          items:
+            $ref: "#/components/schemas/RoomCreationResultEntity"
+        other:
+          type: array
+          description: All creation results of a type other than success or failure
+          xml:
+            wrapped: true
+          items:
+            $ref: "#/components/schemas/RoomCreationResultEntity"
+      xml:
+        name: results
+    RoomCreationResultEntity:
+      type: object
+      properties:
+        roomName:
+          type: string
+          description: The name of the room that was to be created
+          example: open_chat
+        resultType:
+          type: string
+          description: The result of creating the room
+          example: Failure
+          enum:
+          - Success
+          - Failure
+        message:
+          type: string
+          description: A message describing the result
+          example: Room already existed and therefore not created again
+      description: All creation results of a type other than success or failure
+      xml:
+        name: result
+    MUCRoomEntities:
+      type: object
+      properties:
+        chatRooms:
+          type: array
+          xml:
+            name: chatRoom
+          items:
+            $ref: "#/components/schemas/MUCRoomEntity"
+      xml:
+        name: chatRooms
+    MUCRoomMessageEntities:
+      type: object
+      properties:
+        messages:
+          type: array
+          xml:
+            name: message
+          items:
+            $ref: "#/components/schemas/MUCRoomMessageEntity"
+      xml:
+        name: messages
+    MUCRoomMessageEntity:
+      type: object
+      properties:
+        to:
+          type: string
+        from:
+          type: string
+        type:
+          type: string
+        body:
+          type: string
+        delayStamp:
+          type: string
+          xml:
+            name: delay_stamp
+        delayFrom:
+          type: string
+          xml:
+            name: delay_from
+      xml:
+        name: message
+    OccupantEntities:
+      type: object
+      properties:
+        occupants:
+          type: array
+          xml:
+            name: occupant
+          items:
+            $ref: "#/components/schemas/OccupantEntity"
+      xml:
+        name: occupants
+    OccupantEntity:
+      type: object
+      properties:
+        jid:
+          type: string
+        userAddress:
+          type: string
+        role:
+          type: string
+        affiliation:
+          type: string
+      xml:
+        name: occupant
+    ParticipantEntities:
+      type: object
+      properties:
+        participants:
+          type: array
+          xml:
+            name: participant
+          items:
+            $ref: "#/components/schemas/ParticipantEntity"
+      xml:
+        name: participants
+    ParticipantEntity:
+      type: object
+      properties:
+        jid:
+          type: string
+        role:
+          type: string
+        affiliation:
+          type: string
+      xml:
+        name: participant
+    MUCInvitationEntity:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: The reason that will be included in the invitation message(s)
+          example: Come join this cool room please!
+      xml:
+        name: mucInvitation
+    MUCInvitationsEntity:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: The reason that will be included in the invitation message(s)
+          example: Come join this cool room please!
+        jidsToInvite:
+          type: array
+          description: The JIDs and/or names of the users and groups to invite into
+            the room
+          xml:
+            wrapped: true
+          items:
+            type: string
+            description: The JIDs and/or names of the users and groups to invite into
+              the room
+            xml:
+              name: jid
+      xml:
+        name: mucInvitations
+    MUCServiceEntity:
+      type: object
+      properties:
+        serviceName:
+          type: string
+          description: The name of the chat service
+          example: conference
+        description:
+          type: string
+          description: The description of the chat service
+          example: A public service
+        hidden:
+          type: boolean
+          description: Whether the service is hidden
+          example: false
+      xml:
+        name: chatService
+    MUCServiceEntities:
+      type: object
+      properties:
+        services:
+          type: array
+          xml:
+            name: chatService
+          items:
+            $ref: "#/components/schemas/MUCServiceEntity"
+      xml:
+        name: chatServices
+    MessageEntity:
+      type: object
+      properties:
+        body:
+          type: string
+      xml:
+        name: message
+    MsgArchiveEntity:
+      type: object
+      xml:
+        name: archive
+    SecurityAuditLog:
+      type: object
+      properties:
+        logId:
+          type: integer
+          format: int64
+        username:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+        summary:
+          type: string
+        node:
+          type: string
+        details:
+          type: string
+      xml:
+        name: log
+    SecurityAuditLogs:
+      type: object
+      properties:
+        logs:
+          type: array
+          xml:
+            name: log
+          items:
+            $ref: "#/components/schemas/SecurityAuditLog"
+      xml:
+        name: logs
+    SessionEntities:
+      type: object
+      properties:
+        sessions:
+          type: array
+          xml:
+            name: session
+          items:
+            $ref: "#/components/schemas/SessionEntity"
+      xml:
+        name: sessions
+    SessionEntity:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        username:
+          type: string
+        resource:
+          type: string
+        node:
+          type: string
+        sessionStatus:
+          type: string
+        presenceStatus:
+          type: string
+        presenceMessage:
+          type: string
+        priority:
+          type: integer
+          format: int32
+        hostAddress:
+          type: string
+        hostName:
+          type: string
+        creationDate:
+          type: string
+          format: date-time
+        lastActionDate:
+          type: string
+          format: date-time
+        secure:
+          type: boolean
+      xml:
+        name: session
+    SessionsCount:
+      type: object
+      properties:
+        localSessions:
+          type: integer
+          format: int32
+        clusterSessions:
+          type: integer
+          format: int32
+      xml:
+        name: sessions
+    SystemProperty:
+      type: object
+      properties:
+        key:
+          type: string
+          xml:
+            attribute: true
+        value:
+          type: string
+          xml:
+            attribute: true
+      xml:
+        name: property
+    SystemProperties:
+      type: object
+      properties:
+        properties:
+          type: array
+          xml:
+            name: property
+          items:
+            $ref: "#/components/schemas/SystemProperty"
+      xml:
+        name: properties
+    UserGroupsEntity:
+      type: object
+      properties:
+        groupnames:
+          type: array
+          xml:
+            name: groupname
+          items:
+            type: string
+            xml:
+              name: groupname
+      xml:
+        name: groups
+    RosterItemEntity:
+      type: object
+      properties:
+        jid:
+          type: string
+        nickname:
+          type: string
+        subscriptionType:
+          type: integer
+          format: int32
+        groups:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: group
+      xml:
+        name: rosterItem
+    RosterEntities:
+      type: object
+      properties:
+        roster:
+          type: array
+          xml:
+            name: rosterItem
+          items:
+            $ref: "#/components/schemas/RosterItemEntity"
+      xml:
+        name: roster
+    UserEntity:
+      type: object
+      properties:
+        username:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        properties:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            $ref: "#/components/schemas/UserProperty"
+      xml:
+        name: user
+    UserProperty:
+      type: object
+      properties:
+        key:
+          type: string
+          xml:
+            attribute: true
+        value:
+          type: string
+          xml:
+            attribute: true
+    UserEntities:
+      type: object
+      properties:
+        users:
+          type: array
+          xml:
+            name: user
+          items:
+            $ref: "#/components/schemas/UserEntity"
+      xml:
+        name: users
+  securitySchemes:
+    Secret key auth:
+      type: apiKey
+      description: Authenticate using the Secret Key as configured in the Openfire
+        admin console.
+      name: Authorization
+      in: header

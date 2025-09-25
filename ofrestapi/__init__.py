@@ -2,9 +2,13 @@
 
 __version__ = '0.1.1'
 
-from users import Users
-from muc import Muc
-from system import System
-from groups import Groups
-from sessions import Sessions
-from messages import Messages
+# Define the public API
+__all__ = ['Users', 'Muc', 'System', 'Groups', 'Sessions', 'Messages']
+
+# Use absolute imports for Python 3 compatibility
+from ofrestapi.users import Users
+from ofrestapi.muc import Muc
+from ofrestapi.system import System
+from ofrestapi.groups import Groups
+from ofrestapi.sessions import Sessions
+from ofrestapi.messages import Messages

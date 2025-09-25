@@ -1,61 +1,91 @@
 # -*- coding: utf-8 -*-
-from requests import (get, put, post, delete)
-from base import Base
+"""
+MUC (Multi-User Chat) module for Openfire REST API.
+
+This module provides functionality to manage chat rooms in Openfire.
+"""
+
+from typing import Dict, List, Optional, Any
+from requests import get, put, post, delete
+
+from ofrestapi.base import Base
+
+
+__all__ = ["Muc"]
 
 
 class Muc(Base):
 
-    def __init__(self, host, secret, endpoint='/plugins/restapi/v1/chatrooms'):
+    def __init__(self, host: str, secret: str, endpoint: str = "/plugins/restapi/v1/chatrooms") -> None:
         """
-        :param host: Scheme://Host/ for API requests
-        :param secret: Shared secret key for API requests
-        :param endpoint: Endpoint for API requests
+        Initialize the MUC API client.
+        
+        Args:
+            host: Scheme://Host/ for API requests
+            secret: Shared secret key for API requests
+            endpoint: Endpoint for API requests
         """
-        super(Muc, self).__init__(host, secret, endpoint)
+        super().__init__(host, secret, endpoint)
 
-    def get_room(self, roomname, servicename='conference'):
+    def get_room(self, roomname: str, servicename: str = "conference") -> Dict[str, Any]:
         """
-        Retrieve exact chat room info
+        Retrieve exact chat room info.
 
-        :param roomname: The exact chat room name for request
-        :param servicename: (optional) The name of the Group Chat Service. Default: `conference`
+        Args:
+            roomname: The exact chat room name for request
+            servicename: Optional name of the Group Chat Service. Default: 'conference'
+            
+        Returns:
+            Dictionary containing chat room information
         """
-        endpoint = '/'.join([self.endpoint, roomname])
-        params = {'servicename': servicename}
+        endpoint = "/".join([self.endpoint, roomname])
+        params = {"servicename": servicename}
         return self._submit_request(get, endpoint, params=params)
 
-    def get_rooms(self, servicename='conference', typeof='public', query=None):
+    def get_rooms(self, servicename: str = "conference", typeof: str = "public", 
+               query: Optional[str] = None) -> Dict[str, Any]:
         """
-        Retrieve all chat rooms or filter by chat room name
+        Retrieve all chat rooms or filter by chat room name.
 
-        :param servicename: (optional) The name of the Group Chat Service. Default: `conference`
-        :param typeof: (optional) Search only specified type of the rooms. Values: `all`, `public`. Default: `puclic`
-        :param query: (optional) Search/Filter by room name. This act like the wildcard search %String%
+        Args:
+            servicename: Optional name of the Group Chat Service. Default: 'conference'
+            typeof: Optional search only specified type of rooms. Values: 'all', 'public'. Default: 'public'
+            query: Optional search/filter by room name. Acts like the wildcard search %String%
+            
+        Returns:
+            Dictionary containing chat rooms information
         """
         params = {
-            'servicename': servicename,
-            'type': typeof,
-            'search': query,
+            "servicename": servicename,
+            "type": typeof,
+            "search": query,
         }
         return self._submit_request(get, self.endpoint, params=params)
 
-    def get_room_users(self, roomname, servicename='conference'):
+    def get_room_users(self, roomname: str, servicename: str = "conference") -> Dict[str, Any]:
         """
-        Retrieve chat room participants
+        Retrieve chat room participants.
 
-        :param roomname: The exact chat room name for request
-        :param servicename: (optional) The name of the Group Chat Service. Default: `conference`
+        Args:
+            roomname: The exact chat room name for request
+            servicename: Optional name of the Group Chat Service. Default: 'conference'
+            
+        Returns:
+            Dictionary containing participant information
         """
-        endpoint = '/'.join([self.endpoint, roomname, 'participants'])
-        params = {'servicename': servicename}
+        endpoint = "/".join([self.endpoint, roomname, "participants"])
+        params = {"servicename": servicename}
         return self._submit_request(get, endpoint, params=params)
 
-    def add_room(self, roomname, name, description, servicename='conference',
-                 subject=None, password=None, maxusers=0, persistent=True,
-                 public=True, registration=True, visiblejids=True, changesubject=False,
-                 anycaninvite=False, changenickname=True, logenabled=True,
-                 registerednickname=False, membersonly=False, moderated=False,
-                 broadcastroles=None, owners=None, admins=None, members=None, outcasts=None):
+    def add_room(self, roomname: str, name: str, description: str, servicename: str = "conference",
+                 subject: Optional[str] = None, password: Optional[str] = None, maxusers: int = 0, 
+                 persistent: bool = True, public: bool = True, registration: bool = True, 
+                 visiblejids: bool = True, changesubject: bool = False, anycaninvite: bool = False, 
+                 changenickname: bool = True, logenabled: bool = True, registerednickname: bool = False, 
+                 membersonly: bool = False, moderated: bool = False,
+                 broadcastroles: Optional[List[str]] = None, owners: Optional[List[str]] = None, 
+                 admins: Optional[List[str]] = None, members: Optional[List[str]] = None, 
+                 outcasts: Optional[List[str]] = None) -> bool:
         """
         Create a chat room
 

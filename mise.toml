@@ -1,0 +1,10 @@
+[tools]
+github-cli = "latest"
+ruff = "latest"
+uv = "latest"
+
+[env]
+_.python.venv = { path = ".venv", create = true } # create the venv if it doesn't exist
+
+[settings]
+python.uv_venv_auto = true

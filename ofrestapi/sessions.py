@@ -1,38 +1,63 @@
 # -*- coding: utf-8 -*-
-from requests import (get, delete)
-from base import Base
+"""
+Sessions module for Openfire REST API.
+
+This module provides functionality to manage user sessions in Openfire.
+"""
+
+from typing import Dict, Any
+from requests import get, delete
+
+from ofrestapi.base import Base
+
+
+__all__ = ["Sessions"]
 
 
 class Sessions(Base):
 
-    def __init__(self, host, secret, endpoint='/plugins/restapi/v1/sessions'):
+    def __init__(self, host: str, secret: str, endpoint: str = "/plugins/restapi/v1/sessions") -> None:
         """
-        :param host: Scheme://Host/ for API requests
-        :param secret: Shared secret key for API requests
-        :param endpoint: Endpoint for API requests
+        Initialize the Sessions API client.
+        
+        Args:
+            host: Scheme://Host/ for API requests
+            secret: Shared secret key for API requests
+            endpoint: Endpoint for API requests
         """
-        super(Sessions, self).__init__(host, secret, endpoint)
+        super().__init__(host, secret, endpoint)
 
-    def get_sessions(self):
+    def get_sessions(self) -> Dict[str, Any]:
         """
-        Retrieve sessions of all users
+        Retrieve sessions of all users.
+        
+        Returns:
+            Dictionary containing session information for all users
         """
         return self._submit_request(get, self.endpoint)
 
-    def get_user_sessions(self, username):
+    def get_user_sessions(self, username: str) -> Dict[str, Any]:
         """
-        Retrieve sessions of exact user
+        Retrieve sessions of a specific user.
 
-        :param username: The user name
+        Args:
+            username: The user name
+            
+        Returns:
+            Dictionary containing session information for the specified user
         """
-        endpoint = '/'.join([self.endpoint, username])
+        endpoint = "/".join([self.endpoint, username])
         return self._submit_request(get, endpoint)
 
-    def close_user_sessions(self, username):
+    def close_user_sessions(self, username: str) -> bool:
         """
-        Close sessions of exact user
+        Close all sessions of a specific user.
 
-        :param username: The user name
+        Args:
+            username: The user name
+            
+        Returns:
+            True if successful
         """
-        endpoint = '/'.join([self.endpoint, username])
+        endpoint = "/".join([self.endpoint, username])
         return self._submit_request(delete, endpoint)
