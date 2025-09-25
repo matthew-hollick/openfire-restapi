@@ -82,7 +82,7 @@ class Users(Base):
         if props:
             payload["properties"] = {}
             payload["properties"]["property"] = []
-            for key, value in props.items():  # Python 3 uses items() instead of iteritems()
+            for key, value in props.items():
                 payload["properties"]["property"].append({"@key": key, "@value": value})
         return self._submit_request(post, self.endpoint, json=payload)
 
@@ -126,7 +126,7 @@ class Users(Base):
         if props:
             payload["properties"] = {}
             payload["properties"]["property"] = []
-            for key, value in props.items():  # Python 3 uses items() instead of iteritems()
+            for key, value in props.items():
                 payload["properties"]["property"].append({"@key": key, "@value": value})
         return self._submit_request(put, endpoint, json=payload)
 
@@ -187,7 +187,9 @@ class Users(Base):
         Returns:
             True if successful
         """
-        endpoint = "/".join([self.endpoint.rpartition("/")[0], "lockouts", username])
+        # Get base path by removing 'users' from the endpoint
+        base_path = self.endpoint.rstrip("/").rsplit("/", 1)[0]
+        endpoint = f"{base_path}/lockouts/{username}"
         return self._submit_request(post, endpoint)
 
     def unlock_user(self, username: str) -> bool:
@@ -200,7 +202,9 @@ class Users(Base):
         Returns:
             True if successful
         """
-        endpoint = "/".join([self.endpoint.rpartition("/")[0], "lockouts", username])
+        # Get base path by removing 'users' from the endpoint
+        base_path = self.endpoint.rstrip("/").rsplit("/", 1)[0]
+        endpoint = f"{base_path}/lockouts/{username}"
         return self._submit_request(delete, endpoint)
 
     def get_user_roster(self, username: str) -> Dict[str, Any]:

@@ -138,7 +138,7 @@ def example_user_management(host, secret):
         
         # Get the user details
         user = users_api.get_user(test_user)
-        print(f"User details:")
+        print("User details:")
         pprint(user)
         
         # Update the user
@@ -158,7 +158,7 @@ def example_user_management(host, secret):
         
         # Get the updated user details
         user = users_api.get_user(test_user)
-        print(f"Updated user details:")
+        print("Updated user details:")
         pprint(user)
     finally:
         # Clean up - delete the test user
@@ -206,7 +206,7 @@ def example_group_management(host, secret):
         
         # Get group details
         group = groups_api.get_group(test_group)
-        print(f"\nGroup details:")
+        print("\nGroup details:")
         pprint(group)
         
         # Get users in group
@@ -225,7 +225,7 @@ def example_group_management(host, secret):
         
         # Get updated group details
         group = groups_api.get_group(test_group)
-        print(f"Updated group details:")
+        print("Updated group details:")
         pprint(group)
         
         # Remove a user from the group
@@ -289,7 +289,7 @@ def example_muc_management(host, secret):
         
         # Get room details
         room = muc_api.get_room(test_room)
-        print(f"\nRoom details:")
+        print("\nRoom details:")
         pprint(room)
         
         # Update the room
@@ -304,17 +304,17 @@ def example_muc_management(host, secret):
         
         # Get updated room details
         room = muc_api.get_room(test_room)
-        print(f"Updated room details:")
+        print("Updated room details:")
         pprint(room)
         
         # Grant and revoke user roles
         print(f"\nGranting 'members' role to user {test_users[1]}")
         muc_api.grant_user_role(test_room, test_users[1], "members")
-        print(f"Role granted successfully")
+        print("Role granted successfully")
         
         print(f"Revoking 'members' role from user {test_users[1]}")
         muc_api.revoke_user_role(test_room, test_users[1], "members")
-        print(f"Role revoked successfully")
+        print("Role revoked successfully")
     finally:
         # Clean up - delete the test room and users
         try:

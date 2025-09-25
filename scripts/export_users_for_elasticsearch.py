@@ -18,18 +18,28 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from ofrestapi import Users
 
 
-def transform_for_elasticsearch(users: List[Dict[str, Any]], index_name: str) -> List[Dict[str, Any]]:
+def transform_properties(user: Dict[str, Any]) -> Dict[str, Any]:
+    """Transform properties from array to object format."""
+    properties = {}
+    if "properties" in user and isinstance(user["properties"], list):
+        for prop in user["properties"]:
+            if "key" in prop and "value" in prop:
+                properties[prop["key"]] = prop["value"]
+    return properties
+
+
+def transform_for_elasticsearch(users: List[Dict[str, Any]], index_name: str) -> str:
     """
-    Transform user data into Elasticsearch bulk API format.
+    Transform user data into Elasticsearch bulk API format (NDJSON).
     
     Args:
         users: List of user dictionaries
         index_name: Name of the Elasticsearch index
         
     Returns:
-        List of dictionaries in Elasticsearch bulk API format
+        String in NDJSON format for Elasticsearch bulk API
     """
-    bulk_data = []
+    bulk_lines = []
     timestamp = datetime.now(timezone.utc).isoformat()
     
     for user in users:
@@ -40,14 +50,10 @@ def transform_for_elasticsearch(users: List[Dict[str, Any]], index_name: str) ->
                 "_id": user.get("username")
             }
         }
-        bulk_data.append(action)
+        bulk_lines.append(json.dumps(action))
         
         # Transform properties from array to object
-        properties = {}
-        if "properties" in user and isinstance(user["properties"], list):
-            for prop in user["properties"]:
-                if "key" in prop and "value" in prop:
-                    properties[prop["key"]] = prop["value"]
+        properties = transform_properties(user)
         
         # Create the document
         document = {
@@ -58,9 +64,10 @@ def transform_for_elasticsearch(users: List[Dict[str, Any]], index_name: str) ->
             "@timestamp": timestamp,
             "doc_type": "openfire_user"
         }
-        bulk_data.append(document)
+        bulk_lines.append(json.dumps(document))
     
-    return bulk_data
+    # Join lines with newlines and ensure the string ends with a newline
+    return "\n".join(bulk_lines) + "\n"
 
 
 @click.command()
@@ -114,50 +121,17 @@ def export_users(
     for easy ingestion into Elasticsearch.
     """
     try:
-        # Create Users API client
-        users_api = Users(host, token)
-        
-        # Handle SSL verification
+        # Handle SSL verification first, before any network clients are created
         if insecure:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            
-            # Monkey patch the requests module
-            import requests
-            old_request = requests.Session.request
-            def new_request(self, method, url, **kwargs):
-                kwargs['verify'] = False
-                return old_request(self, method, url, **kwargs)
-            requests.Session.request = new_request
-            
-            # Also patch the base requests functions
-            old_get = requests.get
-            old_post = requests.post
-            old_put = requests.put
-            old_delete = requests.delete
-            
-            def new_get(url, **kwargs):
-                kwargs['verify'] = False
-                return old_get(url, **kwargs)
-            
-            def new_post(url, **kwargs):
-                kwargs['verify'] = False
-                return old_post(url, **kwargs)
-            
-            def new_put(url, **kwargs):
-                kwargs['verify'] = False
-                return old_put(url, **kwargs)
-            
-            def new_delete(url, **kwargs):
-                kwargs['verify'] = False
-                return old_delete(url, **kwargs)
-            
-            requests.get = new_get
-            requests.post = new_post
-            requests.put = new_put
-            requests.delete = new_delete
-            
             click.echo("Warning: SSL certificate validation is disabled", err=True)
+        
+        # Create Users API client
+        users_api = Users(host, token)
+        
+        # Set verify_ssl attribute directly
+        users_api.verify_ssl = not insecure
         
         # Get users with optional search filter
         result = users_api.get_users(search)
@@ -178,18 +152,15 @@ def export_users(
             
         # Transform data for Elasticsearch
         if output == "bulk":
-            es_data = transform_for_elasticsearch(users_list, index)
+            # Get NDJSON string for bulk API
+            output_data = transform_for_elasticsearch(users_list, index)
         else:  # documents
             timestamp = datetime.now(timezone.utc).isoformat()
-            es_data = []
+            documents = []
             
             for user in users_list:
                 # Transform properties from array to object
-                properties = {}
-                if "properties" in user and isinstance(user["properties"], list):
-                    for prop in user["properties"]:
-                        if "key" in prop and "value" in prop:
-                            properties[prop["key"]] = prop["value"]
+                properties = transform_properties(user)
                 
                 # Create the document
                 document = {
@@ -204,11 +175,12 @@ def export_users(
                         "doc_type": "openfire_user"
                     }
                 }
-                es_data.append(document)
+                documents.append(document)
+                
+            # Convert documents to JSON string
+            output_data = json.dumps(documents, indent=2)
         
-        # Output the data
-        output_data = json.dumps(es_data, indent=2)
-        
+        # Output the data (already formatted as string)
         if file:
             with open(file, 'w') as f:
                 f.write(output_data)
