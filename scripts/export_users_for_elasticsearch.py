@@ -17,7 +17,7 @@ from typing import Optional, Dict, Any, List
 # Add parent directory to path to import ofrestapi
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from ofrestapi import Users, System
+from ofrestapi import Users, System, Sessions, Muc
 
 
 def transform_properties(user: Dict[str, Any]) -> Dict[str, Any]:
@@ -32,7 +32,10 @@ def transform_properties(user: Dict[str, Any]) -> Dict[str, Any]:
 
 
 
-def prepare_user_for_filebeat(user: Dict[str, Any], host_info: Dict[str, str]) -> Dict[str, Any]:
+def prepare_user_for_filebeat(user: Dict[str, Any], host_info: Dict[str, str], 
+                         session_info: Optional[Dict[str, Any]] = None, 
+                         room_info: Optional[Dict[str, Any]] = None,
+                         verbose: bool = False) -> Dict[str, Any]:
     """
     Prepare a user object for sending to Filebeat.
     
@@ -73,6 +76,50 @@ def prepare_user_for_filebeat(user: Dict[str, Any], host_info: Dict[str, str]) -
         }
     }
     
+    # Add session information if available
+    if session_info is not None:
+        if verbose:
+            click.echo(f"Debug: Adding session info for {user.get('username')}: {session_info}")
+            
+        result["login_status"] = {
+            "is_online": session_info.get("is_online", False)
+        }
+        
+        # Add detailed session information if available
+        if "sessions" in session_info and session_info["sessions"]:
+            result["login_status"]["sessions"] = []
+            for session in session_info["sessions"]:
+                session_data = {
+                    "resource": session.get("resource"),
+                    "status": session.get("presenceStatus"),
+                    "priority": session.get("priority"),
+                    "client_type": session.get("clientType"),
+                    "ip_address": session.get("hostAddress")
+                }
+                
+                # Add connection time if available
+                if "creationDate" in session:
+                    try:
+                        # Convert timestamp to ISO format
+                        timestamp = int(session.get("creationDate", 0))
+                        if timestamp > 0:
+                            dt = datetime.fromtimestamp(timestamp / 1000, timezone.utc)
+                            session_data["connected_since"] = dt.isoformat()
+                    except (ValueError, TypeError):
+                        pass
+                        
+                result["login_status"]["sessions"].append(session_data)
+    
+    # Add room information if available
+    if room_info is not None:
+        if verbose:
+            click.echo(f"Debug: Adding room info for {user.get('username')}: {room_info}")
+            
+        result["room_memberships"] = {
+            "current_rooms": room_info.get("occupied_rooms", []),
+            "affiliated_rooms": room_info.get("affiliated_rooms", {})
+        }
+    
     # Add xmpp_domain if available
     if host_info.get("xmpp_domain"):
         result["openfire"]["domain"] = host_info.get("xmpp_domain")
@@ -80,7 +127,7 @@ def prepare_user_for_filebeat(user: Dict[str, Any], host_info: Dict[str, str]) -
     return result
 
 
-def send_to_filebeat(users: List[Dict[str, Any]], url: Optional[str], host_info: Dict[str, str], insecure: bool, dry_run: bool = False) -> Dict[str, Any]:
+def send_to_filebeat(users: List[Dict[str, Any]], url: Optional[str], host_info: Dict[str, str], insecure: bool, dry_run: bool = False, verbose: bool = False) -> Dict[str, Any]:
     """
     Send user data to a Filebeat HTTP endpoint.
     
@@ -98,8 +145,8 @@ def send_to_filebeat(users: List[Dict[str, Any]], url: Optional[str], host_info:
     
     for user in users:
         try:
-            # Prepare the user data for Filebeat
-            data = prepare_user_for_filebeat(user, host_info)
+            # User data is already prepared, just use it directly
+            data = user
             
             # In dry run mode, just print the data without sending
             if dry_run:
@@ -169,6 +216,21 @@ def send_to_filebeat(users: List[Dict[str, Any]], url: Optional[str], host_info:
     default=False,
     help="Dry run mode: show data that would be sent without actually sending it",
 )
+@click.option(
+    "--include-rooms/--no-include-rooms",
+    default=False,
+    help="Include room membership information for each user",
+)
+@click.option(
+    "--include-sessions/--no-include-sessions",
+    default=False,
+    help="Include session/login status information for each user",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Show verbose debug output",
+)
 def export_users(
     host: str,
     token: str,
@@ -176,6 +238,9 @@ def export_users(
     insecure: bool,
     url: Optional[str],
     dry_run: bool,
+    include_rooms: bool,
+    include_sessions: bool,
+    verbose: bool,
 ) -> None:
     """
     Export Openfire users and send them to a Filebeat HTTP endpoint.
@@ -197,11 +262,21 @@ def export_users(
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        # Create Users API client
+        # Create API clients
         users_api = Users(host, token)
-        
-        # Set verify_ssl attribute directly
         users_api.verify_ssl = not insecure
+        
+        # Create additional API clients if needed
+        sessions_api = None
+        muc_api = None
+        
+        if include_sessions:
+            sessions_api = Sessions(host, token)
+            sessions_api.verify_ssl = not insecure
+            
+        if include_rooms:
+            muc_api = Muc(host, token)
+            muc_api.verify_ssl = not insecure
         
         # Get hostname for identification
         hostname = socket.gethostname()
@@ -264,7 +339,50 @@ def export_users(
                 sys.exit(1)
             click.echo(f"Sending data to Filebeat at {url}", err=True)
             
-        results = send_to_filebeat(users_list, url, server_info, insecure, dry_run)
+        # Process each user to gather additional information
+        processed_users = []
+        for user in users_list:
+            username = user.get("username")
+            
+            # Get session information if requested
+            session_info = None
+            if include_sessions and sessions_api and username:
+                try:
+                    is_online = sessions_api.is_user_online(username)
+                    session_details = sessions_api.get_user_session_details(username) if is_online else []
+                    session_info = {
+                        "is_online": is_online,
+                        "sessions": session_details
+                    }
+                    if verbose:
+                        click.echo(f"Debug: Session info for {username}: online={is_online}, sessions={len(session_details)}")
+                except Exception as e:
+                    click.echo(f"Warning: Could not get session info for {username}: {e}", err=True)
+            
+            # Get room information if requested
+            room_info = None
+            if include_rooms and muc_api and username:
+                try:
+                    # Call get_user_rooms with the correct parameters
+                    room_info = muc_api.get_user_rooms(username, servicename="conference")
+                    if verbose:
+                        occupied = len(room_info.get("occupied_rooms", []))
+                        affiliated = sum(len(rooms) for rooms in room_info.get("affiliated_rooms", {}).values())
+                        click.echo(f"Debug: Room info for {username}: occupied={occupied}, affiliated={affiliated}")
+                except Exception as e:
+                    click.echo(f"Warning: Could not get room info for {username}: {e}", err=True)
+            
+            # Prepare the user data with additional information
+            processed_user = prepare_user_for_filebeat(
+                user, 
+                server_info, 
+                session_info=session_info, 
+                room_info=room_info,
+                verbose=verbose
+            )
+            processed_users.append(processed_user)
+            
+        results = send_to_filebeat(processed_users, url, server_info, insecure, dry_run, verbose=verbose)
         
         if dry_run:
             click.echo(f"DRY RUN: Would have sent {results['success']} users", err=True)

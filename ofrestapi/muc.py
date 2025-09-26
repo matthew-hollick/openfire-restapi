@@ -247,3 +247,135 @@ class Muc(Base):
         endpoint = '/'.join([self.endpoint, roomname, role, username])
         params = {'servicename': servicename}
         return self._submit_request(delete, endpoint, params=params)
+        
+    def get_user_rooms(self, username: str, servicename: str = "conference") -> Dict[str, Any]:
+        """
+        Find all rooms where a user is an occupant or has an affiliation.
+        
+        Args:
+            username: The username to search for
+            servicename: The name of the MUC service
+            
+        Returns:
+            Dictionary with 'occupied_rooms' and 'affiliated_rooms' lists
+        """
+        # Get all rooms
+        rooms = self.get_rooms(servicename=servicename)
+        
+        # Initialize result structure
+        result = {
+            "occupied_rooms": [],
+            "affiliated_rooms": {
+                "owner": [],
+                "admin": [],
+                "member": [],
+                "outcast": []
+            }
+        }
+        
+        # Check if we have rooms
+        if not rooms or "chatRooms" not in rooms or not rooms["chatRooms"]:
+            return result
+            
+        # Extract the room list
+        room_list = rooms["chatRooms"]
+        if isinstance(room_list, dict) and "chatRoom" in room_list:
+            room_list = room_list["chatRoom"]
+            # Handle single room case
+            if isinstance(room_list, dict):
+                room_list = [room_list]
+                
+        # Process each room
+        for room in room_list:
+            room_data = self._extract_user_room_data(room, username, servicename)
+            
+            # Add to occupied rooms if user is currently in the room
+            if room_data["is_occupant"]:
+                result["occupied_rooms"].append({
+                    "room_name": room.get("roomName"),
+                    "natural_name": room.get("naturalName"),
+                    "subject": room.get("subject"),
+                    "occupant_nickname": room_data["nickname"],
+                    "occupant_role": room_data["role"],
+                    "service_name": servicename
+                })
+                
+            # Add to affiliated rooms based on affiliation type
+            if room_data["affiliation"]:
+                result["affiliated_rooms"][room_data["affiliation"]].append({
+                    "room_name": room.get("roomName"),
+                    "natural_name": room.get("naturalName"),
+                    "subject": room.get("subject"),
+                    "service_name": servicename
+                })
+                
+        return result
+        
+    def _extract_user_room_data(self, room: Dict[str, Any], username: str, servicename: str = "conference") -> Dict[str, Any]:
+        """
+        Extract user-specific data from a room.
+        
+        Args:
+            room: The room data
+            username: The username to search for
+            servicename: The MUC service name
+            
+        Returns:
+            Dictionary with user's status in the room
+        """
+        result = {
+            "is_occupant": False,
+            "nickname": None,
+            "role": None,
+            "affiliation": None
+        }
+        
+        # Prepare the JID to search for
+        jid = username
+        # Try to extract domain from servicename if needed
+        if "@" not in username and "." in servicename:
+            jid = f"{username}@{servicename}"
+        # Default case: just use the username as is
+            
+        # Check occupants
+        if "occupants" in room and room["occupants"]:
+            occupants = room["occupants"]
+            if isinstance(occupants, dict) and "occupant" in occupants:
+                occupant_list = occupants["occupant"]
+                # Handle single occupant case
+                if isinstance(occupant_list, dict):
+                    occupant_list = [occupant_list]
+                    
+                for occupant in occupant_list:
+                    # Extract JID from occupant data
+                    occupant_jid = occupant.get("jid", "")
+                    if jid in occupant_jid:
+                        result["is_occupant"] = True
+                        # Extract nickname from JID (after the /)
+                        if "/" in occupant_jid:
+                            result["nickname"] = occupant_jid.split("/")[-1]
+                        result["role"] = occupant.get("role")
+                        break
+        
+        # Check affiliations
+        for affiliation_type in ["owners", "admins", "members", "outcasts"]:
+            if affiliation_type in room and room[affiliation_type]:
+                affiliation_data = room[affiliation_type]
+                if isinstance(affiliation_data, dict) and "user" in affiliation_data:
+                    user_list = affiliation_data["user"]
+                    # Handle single user case
+                    if isinstance(user_list, dict) or isinstance(user_list, str):
+                        user_list = [user_list]
+                        
+                    for user in user_list:
+                        # User might be a string or a dict
+                        user_jid = user
+                        if isinstance(user, dict):
+                            user_jid = user.get("jid", "")
+                            
+                        if jid == user_jid:
+                            # Convert plural to singular for affiliation type
+                            result["affiliation"] = affiliation_type[:-1]  # Remove 's'
+                            break
+                            
+        return result

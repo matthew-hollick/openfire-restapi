@@ -11,6 +11,7 @@ security audit logs from an Openfire server.
 import os
 import sys
 import json
+import argparse
 from datetime import datetime, timedelta
 
 # Add parent directory to path to import ofrestapi
@@ -24,15 +25,20 @@ def format_timestamp(timestamp_sec):
     return dt.strftime('%Y-%m-%d %H:%M:%S')
 
 def main():
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Retrieve security audit logs from Openfire.")
+    parser.add_argument("--host", default="http://localhost:9090", help="Openfire server URL")
+    parser.add_argument("--token", required=True, help="API token for authentication")
+    parser.add_argument("--insecure", action="store_true", help="Disable SSL verification")
+    args = parser.parse_args()
+    
     # Configuration
-    host = "http://localhost:9090"  # Replace with your Openfire server URL
-    token = "your_auth_token"       # Replace with your authentication token
+    host = args.host
+    token = args.token
     
     # Create SecurityAuditLog API client
     security_api = SecurityAuditLog(host, token)
-    security_api.verify_ssl = True
-    # For local testing with self-signed certs, set to False temporarily.
-    # security_api.verify_ssl = False
+    security_api.verify_ssl = not args.insecure
     # Example 1: Get recent logs (last 10 entries)
     print("Getting 10 most recent security audit logs...")
     recent_logs = security_api.get_recent_logs(limit=10)
