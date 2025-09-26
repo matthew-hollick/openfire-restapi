@@ -2,20 +2,22 @@
 # -*- coding: utf-8 -*-
 
 """
-Script to export Openfire MUC (Multi-User Chat) rooms in a format suitable for Elasticsearch ingestion.
+Script to export Openfire MUC (Multi-User Chat) rooms and send them to a Filebeat HTTP endpoint.
 """
 
 import sys
 import os
 import json
+import socket
+import requests
 import click
 from datetime import datetime, timezone
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 # Add parent directory to path to import ofrestapi
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from ofrestapi import Muc
+from ofrestapi import Muc, System
 
 
 def _normalize_role_data(role_data: Any, key_name: str) -> List:
@@ -104,18 +106,33 @@ def _process_occupants(occupants_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     return normalized_occupants
 
 
-def _create_document_source(room: Dict[str, Any], timestamp: str, muc_api=None, service: str = "conference") -> Dict[str, Any]:
+def prepare_room_for_filebeat(room: Dict[str, Any], host_info: Dict[str, str], muc_api=None, service: str = "conference") -> Dict[str, Any]:
     """
-    Transform a room dictionary into an Elasticsearch document source.
+    Prepare a room object for sending to Filebeat.
+    
+    This function transforms the room data into a format suitable for Filebeat,
+    adding hostname and server information.
+    
+    Available fields from Openfire API (not all may be included):
+    - roomName: The name of the room (string)
+    - naturalName: The display name of the room (string)
+    - description: Room description (string)
+    - subject: Room subject/topic (string)
+    - creationDate: When the room was created (timestamp)
+    - modificationDate: When the room was last modified (timestamp)
+    - maxUsers: Maximum number of users allowed (integer)
+    - persistent: Whether the room persists after all users leave (boolean)
+    - publicRoom: Whether the room is publicly listed (boolean)
+    - and many more configuration settings
     
     Args:
-        room: Room dictionary
-        timestamp: ISO-formatted timestamp string
+        room: Room dictionary from Openfire API
+        host_info: Dictionary with hostname and server information
         muc_api: Optional MUC API client for fetching additional data
         service: Optional MUC service name
         
     Returns:
-        Dictionary containing the document source
+        Dictionary with room data formatted for Filebeat
     """
     # Process user roles with the helper function
     owners = _normalize_role_data(room.get("owners", []), "owner")
@@ -139,8 +156,8 @@ def _create_document_source(room: Dict[str, Any], timestamp: str, muc_api=None, 
             # If there's an error, leave occupants as an empty list
             pass
     
-    # Create the document source
-    return {
+    # Create the document with additional host information
+    result = {
         "room_name": room.get("roomName"),
         "natural_name": room.get("naturalName"),
         "description": room.get("description"),
@@ -176,42 +193,73 @@ def _create_document_source(room: Dict[str, Any], timestamp: str, muc_api=None, 
         },
         "occupants": occupants,
         "occupant_count": len(occupants),
-        "@timestamp": timestamp,
-        "doc_type": "openfire_muc_room"
+        "@timestamp": datetime.now(timezone.utc).isoformat(),
+        "host": {
+            "name": host_info.get("hostname"),
+        },
+        "openfire": {
+            "server": host_info.get("server")
+        }
     }
+    
+    # Add xmpp_domain if available
+    if host_info.get("xmpp_domain"):
+        result["openfire"]["domain"] = host_info.get("xmpp_domain")
+        
+    return result
 
 
-def transform_for_elasticsearch(rooms: List[Dict[str, Any]], index: str, muc_api=None, service: str = "conference") -> List[Dict[str, Any]]:
+def send_to_filebeat(rooms: List[Dict[str, Any]], url: str, host_info: Dict[str, str], muc_api=None, service: str = "conference", insecure: bool = False, dry_run: bool = False) -> Dict[str, Any]:
     """
-    Transform a list of rooms into Elasticsearch bulk API format.
+    Send room data to a Filebeat HTTP endpoint.
     
     Args:
         rooms: List of room dictionaries
-        index: Elasticsearch index name
+        url: URL of the Filebeat HTTP endpoint
+        host_info: Dictionary with hostname and server information
         muc_api: Optional MUC API client for fetching additional data
         service: Optional MUC service name
+        insecure: Whether to disable SSL certificate validation
+        dry_run: If True, only show the data that would be sent without actually sending it
         
     Returns:
-        List of dictionaries in Elasticsearch bulk API format
+        Dictionary with success and failure counts
     """
-    bulk_data = []
-    timestamp = datetime.now(timezone.utc).isoformat()
+    results = {"success": 0, "failure": 0, "failed_rooms": []}
     
     for room in rooms:
-        # Create the action/metadata line
-        action = {
-            "index": {
-                "_index": index,
-                "_id": f"{room.get('roomName')}@{room.get('serviceName', 'conference')}"
-            }
-        }
-        bulk_data.append(action)
-        
-        # Create the document using the helper function
-        document = _create_document_source(room, timestamp, muc_api, service)
-        bulk_data.append(document)
+        try:
+            # Prepare the room data for Filebeat
+            data = prepare_room_for_filebeat(room, host_info, muc_api, service)
+            
+            # In dry run mode, just print the data without sending
+            if dry_run:
+                click.echo(f"\nDRY RUN: Data that would be sent for room {room.get('roomName')}:")
+                click.echo(json.dumps(data, indent=2))
+                results["success"] += 1
+                continue
+            
+            # Send the data to Filebeat
+            response = requests.post(
+                url,
+                json=data,
+                headers={"Content-Type": "application/json"},
+                verify=not insecure
+            )
+            
+            # Check if the request was successful
+            if response.status_code >= 200 and response.status_code < 300:
+                results["success"] += 1
+            else:
+                results["failure"] += 1
+                results["failed_rooms"].append(room.get("roomName"))
+                click.echo(f"Failed to send room {room.get('roomName')}: {response.status_code} {response.text}", err=True)
+        except Exception as e:
+            results["failure"] += 1
+            results["failed_rooms"].append(room.get("roomName"))
+            click.echo(f"Error sending room {room.get('roomName')}: {e}", err=True)
     
-    return bulk_data
+    return results
 
 
 @click.command()
@@ -242,19 +290,13 @@ def transform_for_elasticsearch(rooms: List[Dict[str, Any]], index: str, muc_api
     help="Disable SSL certificate validation (for self-signed certificates)",
 )
 @click.option(
-    "--index",
-    default="openfire_muc_rooms",
-    help="Elasticsearch index name",
+    "--url",
+    help="URL of the Filebeat HTTP endpoint (if specified, data will be sent to this URL)",
 )
 @click.option(
-    "--output",
-    type=click.Choice(["bulk", "documents"]),
-    default="bulk",
-    help="Output format (bulk for Elasticsearch bulk API, documents for individual documents)",
-)
-@click.option(
-    "--file",
-    help="Output file path (optional, defaults to stdout)",
+    "--dry-run/--no-dry-run",
+    default=False,
+    help="Dry run mode: show data that would be sent without actually sending it",
 )
 def export_muc(
     host: str,
@@ -262,15 +304,23 @@ def export_muc(
     service: str,
     type: str,
     insecure: bool,
-    index: str,
-    output: str,
-    file: str,
+    url: Optional[str],
+    dry_run: bool,
 ) -> None:
     """
-    Export Openfire MUC (Multi-User Chat) rooms in a format suitable for Elasticsearch ingestion.
+    Export Openfire MUC (Multi-User Chat) rooms and send them to a Filebeat HTTP endpoint.
     
-    This script connects to an Openfire server, retrieves MUC room data, and formats it
-    for easy ingestion into Elasticsearch.
+    This script connects to an Openfire server, retrieves MUC room data, and sends it
+    to a Filebeat HTTP endpoint for further processing.
+    
+    All command-line options can also be provided via environment variables with the
+    prefix EXPORT_MUC_ followed by the option name in uppercase. For example:
+      --host can be set with EXPORT_MUC_HOST
+      --token can be set with EXPORT_MUC_TOKEN
+      --url can be set with EXPORT_MUC_URL
+      --service can be set with EXPORT_MUC_SERVICE
+    
+    Boolean flags like --dry-run can be set with EXPORT_MUC_DRY_RUN=true/false.
     """
     try:
         # Handle SSL verification first, before any network clients are created
@@ -284,6 +334,36 @@ def export_muc(
         
         # Set verify_ssl attribute directly
         muc_api.verify_ssl = not insecure
+        
+        # Get hostname for identification
+        hostname = socket.gethostname()
+        
+        # Get xmpp.domain from system properties if available
+        xmpp_domain = None
+        try:
+            # Create System API client (reusing host and token)
+            system_api = System(host, token)
+            system_api.verify_ssl = not insecure
+            
+            # Get all properties in a single request
+            props = system_api.get_props()
+            
+            # Extract xmpp.domain if available
+            if "property" in props:
+                for prop in props["property"]:
+                    if prop.get("key") == "xmpp.domain":
+                        xmpp_domain = prop.get("value")
+                        break
+        except Exception:
+            # If we can't get the domain, continue without it
+            pass
+        
+        # Prepare server information
+        server_info = {
+            "hostname": hostname,
+            "server": host,
+            "xmpp_domain": xmpp_domain
+        }
         
         # Get rooms with optional filtering
         result = muc_api.get_rooms(servicename=service, typeof=type)
@@ -306,31 +386,24 @@ def export_muc(
         for room in rooms_list:
             if 'serviceName' not in room:
                 room['serviceName'] = service
-        
-        # Format the output based on the requested format
-        if output == "bulk":
-            es_data = transform_for_elasticsearch(rooms_list, index, muc_api, service)
-        else:  # documents
-            timestamp = datetime.now(timezone.utc).isoformat()
-            es_data = []
+                
+        if not url:
+            click.echo("Error: --url is required", err=True)
+            sys.exit(1)
             
-            for room in rooms_list:
-                document = {
-                    "_index": index,
-                    "_id": f"{room.get('roomName')}@{room.get('serviceName', 'conference')}",
-                    "_source": _create_document_source(room, timestamp, muc_api, service)
-                }
-                es_data.append(document)
-        
-        # Output the data
-        output_data = json.dumps(es_data, indent=2)
-        
-        if file:
-            with open(file, 'w') as f:
-                f.write(output_data)
-            click.echo(f"Data exported to {file}", err=True)
+        if dry_run:
+            click.echo(f"DRY RUN: Would send data to Filebeat at {url}", err=True)
         else:
-            click.echo(output_data)
+            click.echo(f"Sending data to Filebeat at {url}", err=True)
+            
+        results = send_to_filebeat(rooms_list, url, server_info, muc_api, service, insecure, dry_run)
+        
+        if dry_run:
+            click.echo(f"DRY RUN: Would have sent {results['success']} rooms", err=True)
+        else:
+            click.echo(f"Sent {results['success']} rooms successfully, {results['failure']} failed", err=True)
+            if results['failure'] > 0:
+                click.echo(f"Failed rooms: {', '.join(results['failed_rooms'])}", err=True)
             
     except Exception as e:
         click.echo(f"Error: {e}", err=True)

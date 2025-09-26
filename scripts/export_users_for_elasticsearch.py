@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-Script to export Openfire users in a format suitable for Elasticsearch ingestion.
+Script to export Openfire users and send them to a Filebeat HTTP endpoint.
 """
 
 import sys
 import os
 import json
+import socket
+import requests
 import click
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
@@ -15,7 +17,7 @@ from typing import Optional, Dict, Any, List
 # Add parent directory to path to import ofrestapi
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from ofrestapi import Users
+from ofrestapi import Users, System
 
 
 def transform_properties(user: Dict[str, Any]) -> Dict[str, Any]:
@@ -28,46 +30,105 @@ def transform_properties(user: Dict[str, Any]) -> Dict[str, Any]:
     return properties
 
 
-def transform_for_elasticsearch(users: List[Dict[str, Any]], index_name: str) -> str:
+
+
+def prepare_user_for_filebeat(user: Dict[str, Any], host_info: Dict[str, str]) -> Dict[str, Any]:
     """
-    Transform user data into Elasticsearch bulk API format (NDJSON).
+    Prepare a user object for sending to Filebeat.
+    
+    This function transforms the user data into a format suitable for Filebeat,
+    adding hostname and server information.
+    
+    Available fields from Openfire API (not all are included):
+    - username: The user's username (string)
+    - name: The user's display name (string)
+    - email: The user's email address (string)
+    - properties: Custom user properties (object)
+    - password: User's password (string, not included for security)
+    - creationDate: When the user was created (timestamp, not always available)
+    - modificationDate: When the user was last modified (timestamp, not always available)
+    
+    Args:
+        user: User dictionary from Openfire API
+        host_info: Dictionary with hostname and server information
+        
+    Returns:
+        Dictionary with user data formatted for Filebeat
+    """
+    # Transform properties from array to object
+    properties = transform_properties(user)
+    
+    # Create the document with additional host information
+    result = {
+        "username": user.get("username"),
+        "name": user.get("name"),
+        "email": user.get("email"),
+        "properties": properties,
+        "@timestamp": datetime.now(timezone.utc).isoformat(),
+        "host": {
+            "name": host_info.get("hostname"),
+        },
+        "openfire": {
+            "server": host_info.get("server")
+        }
+    }
+    
+    # Add xmpp_domain if available
+    if host_info.get("xmpp_domain"):
+        result["openfire"]["domain"] = host_info.get("xmpp_domain")
+        
+    return result
+
+
+def send_to_filebeat(users: List[Dict[str, Any]], url: str, host_info: Dict[str, str], insecure: bool, dry_run: bool = False) -> Dict[str, Any]:
+    """
+    Send user data to a Filebeat HTTP endpoint.
     
     Args:
         users: List of user dictionaries
-        index_name: Name of the Elasticsearch index
+        url: URL of the Filebeat HTTP endpoint
+        host_info: Dictionary with hostname and server information
+        insecure: Whether to disable SSL certificate validation
+        dry_run: If True, only show the data that would be sent without actually sending it
         
     Returns:
-        String in NDJSON format for Elasticsearch bulk API
+        Dictionary with success and failure counts
     """
-    bulk_lines = []
-    timestamp = datetime.now(timezone.utc).isoformat()
+    results = {"success": 0, "failure": 0, "failed_users": []}
     
     for user in users:
-        # Create the action/metadata line
-        action = {
-            "index": {
-                "_index": index_name,
-                "_id": user.get("username")
-            }
-        }
-        bulk_lines.append(json.dumps(action))
-        
-        # Transform properties from array to object
-        properties = transform_properties(user)
-        
-        # Create the document
-        document = {
-            "username": user.get("username"),
-            "name": user.get("name"),
-            "email": user.get("email"),
-            "properties": properties,
-            "@timestamp": timestamp,
-            "doc_type": "openfire_user"
-        }
-        bulk_lines.append(json.dumps(document))
+        try:
+            # Prepare the user data for Filebeat
+            data = prepare_user_for_filebeat(user, host_info)
+            
+            # In dry run mode, just print the data without sending
+            if dry_run:
+                click.echo(f"\nDRY RUN: Data that would be sent for user {user.get('username')}:")
+                click.echo(json.dumps(data, indent=2))
+                results["success"] += 1
+                continue
+            
+            # Send the data to Filebeat
+            response = requests.post(
+                url,
+                json=data,
+                headers={"Content-Type": "application/json"},
+                verify=not insecure
+            )
+            
+            # Check if the request was successful
+            if response.status_code >= 200 and response.status_code < 300:
+                results["success"] += 1
+            else:
+                results["failure"] += 1
+                results["failed_users"].append(user.get("username"))
+                click.echo(f"Failed to send user {user.get('username')}: {response.status_code} {response.text}", err=True)
+        except Exception as e:
+            results["failure"] += 1
+            results["failed_users"].append(user.get("username"))
+            click.echo(f"Error sending user {user.get('username')}: {e}", err=True)
     
-    # Join lines with newlines and ensure the string ends with a newline
-    return "\n".join(bulk_lines) + "\n"
+    return results
 
 
 @click.command()
@@ -91,47 +152,77 @@ def transform_for_elasticsearch(users: List[Dict[str, Any]], index_name: str) ->
     help="Disable SSL certificate validation (for self-signed certificates)",
 )
 @click.option(
-    "--index",
-    default="openfire_users",
-    help="Elasticsearch index name",
+    "--url",
+    help="URL of the Filebeat HTTP endpoint (if specified, data will be sent to this URL)",
 )
 @click.option(
-    "--output",
-    type=click.Choice(["bulk", "documents"]),
-    default="bulk",
-    help="Output format: 'bulk' for Elasticsearch Bulk API, 'documents' for individual documents",
-)
-@click.option(
-    "--file",
-    help="Output file (if not specified, output to stdout)",
+    "--dry-run/--no-dry-run",
+    default=False,
+    help="Dry run mode: show data that would be sent without actually sending it",
 )
 def export_users(
     host: str,
     token: str,
     search: Optional[str],
     insecure: bool,
-    index: str,
-    output: str,
-    file: Optional[str],
+    url: Optional[str],
+    dry_run: bool,
 ) -> None:
     """
-    Export Openfire users in a format suitable for Elasticsearch ingestion.
+    Export Openfire users and send them to a Filebeat HTTP endpoint.
     
-    This script connects to an Openfire server, retrieves user data, and formats it
-    for easy ingestion into Elasticsearch.
+    This script connects to an Openfire server, retrieves user data, and sends it
+    to a Filebeat HTTP endpoint for further processing.
+    
+    All command-line options can also be provided via environment variables with the
+    prefix EXPORT_USERS_ followed by the option name in uppercase. For example:
+      --host can be set with EXPORT_USERS_HOST
+      --token can be set with EXPORT_USERS_TOKEN
+      --url can be set with EXPORT_USERS_URL
+    
+    Boolean flags like --dry-run can be set with EXPORT_USERS_DRY_RUN=true/false.
     """
     try:
         # Handle SSL verification first, before any network clients are created
         if insecure:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            click.echo("Warning: SSL certificate validation is disabled", err=True)
         
         # Create Users API client
         users_api = Users(host, token)
         
         # Set verify_ssl attribute directly
         users_api.verify_ssl = not insecure
+        
+        # Get hostname for identification
+        hostname = socket.gethostname()
+        
+        # Get xmpp.domain from system properties if available
+        xmpp_domain = None
+        try:
+            # Create System API client (reusing host and token)
+            system_api = System(host, token)
+            system_api.verify_ssl = not insecure
+            
+            # Get all properties in a single request
+            props = system_api.get_props()
+            
+            # Extract xmpp.domain if available
+            if "property" in props:
+                for prop in props["property"]:
+                    if prop.get("key") == "xmpp.domain":
+                        xmpp_domain = prop.get("value")
+                        break
+        except Exception:
+            # If we can't get the domain, continue without it
+            pass
+        
+        # Prepare server information
+        server_info = {
+            "hostname": hostname,
+            "server": host,
+            "xmpp_domain": xmpp_domain
+        }
         
         # Get users with optional search filter
         result = users_api.get_users(search)
@@ -150,43 +241,23 @@ def export_users(
             click.echo("No users found.", err=True)
             return
             
-        # Transform data for Elasticsearch
-        if output == "bulk":
-            # Get NDJSON string for bulk API
-            output_data = transform_for_elasticsearch(users_list, index)
-        else:  # documents
-            timestamp = datetime.now(timezone.utc).isoformat()
-            documents = []
+        if not url:
+            click.echo("Error: --url is required", err=True)
+            sys.exit(1)
             
-            for user in users_list:
-                # Transform properties from array to object
-                properties = transform_properties(user)
-                
-                # Create the document
-                document = {
-                    "_index": index,
-                    "_id": user.get("username"),
-                    "_source": {
-                        "username": user.get("username"),
-                        "name": user.get("name"),
-                        "email": user.get("email"),
-                        "properties": properties,
-                        "@timestamp": timestamp,
-                        "doc_type": "openfire_user"
-                    }
-                }
-                documents.append(document)
-                
-            # Convert documents to JSON string
-            output_data = json.dumps(documents, indent=2)
-        
-        # Output the data (already formatted as string)
-        if file:
-            with open(file, 'w') as f:
-                f.write(output_data)
-            click.echo(f"Data exported to {file}", err=True)
+        if dry_run:
+            click.echo(f"DRY RUN: Would send data to Filebeat at {url}", err=True)
         else:
-            click.echo(output_data)
+            click.echo(f"Sending data to Filebeat at {url}", err=True)
+            
+        results = send_to_filebeat(users_list, url, server_info, insecure, dry_run)
+        
+        if dry_run:
+            click.echo(f"DRY RUN: Would have sent {results['success']} users", err=True)
+        else:
+            click.echo(f"Sent {results['success']} users successfully, {results['failure']} failed", err=True)
+            if results['failure'] > 0:
+                click.echo(f"Failed users: {', '.join(results['failed_users'])}", err=True)
             
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
