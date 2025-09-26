@@ -40,8 +40,8 @@ class SecurityAuditLog(Base):
             username: Optional username to filter events by
             offset: Optional number of log entries to skip
             limit: Number of log entries to retrieve (default: 100)
-            start_time: Optional oldest timestamp (in milliseconds since epoch) of logs to retrieve
-            end_time: Optional most recent timestamp (in milliseconds since epoch) of logs to retrieve
+            start_time: Optional oldest timestamp (in seconds since epoch) of logs to retrieve
+            end_time: Optional most recent timestamp (in seconds since epoch) of logs to retrieve
             
         Returns:
             Dictionary containing security audit log entries
@@ -90,8 +90,8 @@ class SecurityAuditLog(Base):
         Retrieve security audit log entries within a specific timeframe.
         
         Args:
-            start_time: Oldest timestamp (in milliseconds since epoch) of logs to retrieve
-            end_time: Most recent timestamp (in milliseconds since epoch) of logs to retrieve
+            start_time: Oldest timestamp (in seconds since epoch) of logs to retrieve
+            end_time: Most recent timestamp (in seconds since epoch) of logs to retrieve
             limit: Number of log entries to retrieve (default: 100)
             
         Returns:
@@ -119,6 +119,10 @@ class SecurityAuditLog(Base):
                 return logs_response["logs"]
             # Or it might be nested under logs.log
             elif isinstance(logs_response["logs"], dict) and "log" in logs_response["logs"]:
+                # Check if the log is a dict (single entry) and wrap it in a list
+                if isinstance(logs_response["logs"]["log"], dict):
+                    return [logs_response["logs"]["log"]]
+                # Otherwise, return the list as is
                 return logs_response["logs"]["log"]
             # Handle empty response
             elif logs_response["logs"] is None or logs_response["logs"] == []:

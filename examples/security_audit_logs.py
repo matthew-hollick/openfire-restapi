@@ -18,9 +18,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from ofrestapi import SecurityAuditLog
 
-def format_timestamp(timestamp_ms):
-    """Convert millisecond timestamp to human-readable format."""
-    dt = datetime.fromtimestamp(timestamp_ms / 1000)
+def format_timestamp(timestamp_sec):
+    """Convert seconds timestamp to human-readable format."""
+    dt = datetime.fromtimestamp(timestamp_sec)
     return dt.strftime('%Y-%m-%d %H:%M:%S')
 
 def main():
@@ -30,8 +30,9 @@ def main():
     
     # Create SecurityAuditLog API client
     security_api = SecurityAuditLog(host, token)
-    security_api.verify_ssl = False  # Set to True in production
-    
+    security_api.verify_ssl = True
+    # For local testing with self-signed certs, set to False temporarily.
+    # security_api.verify_ssl = False
     # Example 1: Get recent logs (last 10 entries)
     print("Getting 10 most recent security audit logs...")
     recent_logs = security_api.get_recent_logs(limit=10)
@@ -68,11 +69,11 @@ def main():
         print(f"No log entries found for user '{username}'.")
     
     # Example 3: Get logs within a specific timeframe (last 24 hours)
-    now_ms = int(datetime.now().timestamp() * 1000)
-    yesterday_ms = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
+    now_sec = int(datetime.now().timestamp())
+    yesterday_sec = int((datetime.now() - timedelta(days=1)).timestamp())
     
     print(f"\nGetting security audit logs from the last 24 hours...")
-    timeframe_logs = security_api.get_logs_in_timeframe(yesterday_ms, now_ms, limit=10)
+    timeframe_logs = security_api.get_logs_in_timeframe(yesterday_sec, now_sec, limit=10)
     
     # Extract and print log entries
     log_entries = security_api.extract_log_entries(timeframe_logs)

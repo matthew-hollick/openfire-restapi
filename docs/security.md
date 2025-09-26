@@ -27,8 +27,8 @@ Retrieve entries from the security audit log.
 - `username`: Optional username to filter events by
 - `offset`: Optional number of log entries to skip
 - `limit`: Number of log entries to retrieve (default: 100)
-- `start_time`: Optional oldest timestamp (in milliseconds since epoch) of logs to retrieve
-- `end_time`: Optional most recent timestamp (in milliseconds since epoch) of logs to retrieve
+- `start_time`: Optional oldest timestamp (in seconds since epoch) of logs to retrieve
+- `end_time`: Optional most recent timestamp (in seconds since epoch) of logs to retrieve
 
 Returns a dictionary containing security audit log entries.
 
@@ -142,4 +142,4 @@ The API response from the `/plugins/restapi/v1/logs/security` endpoint has the f
 }
 ```
 
-Note that the timestamp is in seconds since epoch, not milliseconds.
+Note that all timestamps are in seconds since epoch.

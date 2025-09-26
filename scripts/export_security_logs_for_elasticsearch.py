@@ -86,9 +86,16 @@ def prepare_log_for_filebeat(log: Dict[str, Any], host_info: Dict[str, str]) -> 
     Returns:
         Dictionary with the log entry formatted for Filebeat
     """
-    # Create a timestamp from the log's timestamp
-    # Note: Openfire security logs use seconds, not milliseconds
-    timestamp = datetime.fromtimestamp(log.get('timestamp', 0), timezone.utc).isoformat()
+    # Get the raw timestamp value (in seconds) from the log
+    timestamp_seconds = log.get('timestamp', 0)
+    # Ensure it's a number
+    try:
+        timestamp_seconds = int(timestamp_seconds)
+    except (ValueError, TypeError):
+        timestamp_seconds = 0
+        
+    # Create an ISO-formatted timestamp
+    timestamp = datetime.fromtimestamp(timestamp_seconds, timezone.utc).isoformat()
     
     result = {
         "log_id": log.get("logId"),
