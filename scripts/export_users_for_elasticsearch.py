@@ -80,7 +80,7 @@ def prepare_user_for_filebeat(user: Dict[str, Any], host_info: Dict[str, str]) -
     return result
 
 
-def send_to_filebeat(users: List[Dict[str, Any]], url: str, host_info: Dict[str, str], insecure: bool, dry_run: bool = False) -> Dict[str, Any]:
+def send_to_filebeat(users: List[Dict[str, Any]], url: Optional[str], host_info: Dict[str, str], insecure: bool, dry_run: bool = False) -> Dict[str, Any]:
     """
     Send user data to a Filebeat HTTP endpoint.
     
@@ -108,12 +108,21 @@ def send_to_filebeat(users: List[Dict[str, Any]], url: str, host_info: Dict[str,
                 results["success"] += 1
                 continue
             
+            # For actual sending, URL must be provided
+            if not url:
+                # This should never happen due to earlier checks, but just in case
+                click.echo(f"Error: Cannot send user {user.get('username')} - URL is required", err=True)
+                results["failure"] += 1
+                results["failed_users"].append(user.get("username"))
+                continue
+                
             # Send the data to Filebeat
             response = requests.post(
                 url,
                 json=data,
                 headers={"Content-Type": "application/json"},
-                verify=not insecure
+                verify=not insecure,
+                timeout=10  # Add timeout to prevent hanging on network issues
             )
             
             # Check if the request was successful
@@ -241,13 +250,18 @@ def export_users(
             click.echo("No users found.", err=True)
             return
             
-        if not url:
-            click.echo("Error: --url is required", err=True)
-            sys.exit(1)
-            
+        # Handle dry run mode first
         if dry_run:
-            click.echo(f"DRY RUN: Would send data to Filebeat at {url}", err=True)
+            # For dry run, URL is optional
+            if url:
+                click.echo(f"DRY RUN: Would send data to Filebeat at {url}", err=True)
+            else:
+                click.echo("DRY RUN: Would send data to Filebeat", err=True)
         else:
+            # For actual sending, URL is required
+            if not url:
+                click.echo("Error: --url is required for sending data", err=True)
+                sys.exit(1)
             click.echo(f"Sending data to Filebeat at {url}", err=True)
             
         results = send_to_filebeat(users_list, url, server_info, insecure, dry_run)
