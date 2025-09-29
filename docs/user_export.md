@@ -29,7 +29,14 @@ Common command-line options can be provided via standardized environment variabl
 - `--token` can be set with `OPENFIRE_TOKEN`
 - `--url` can be set with `FILEBEAT_URL`
 
-Script-specific options can be provided via environment variables with the prefix `EXPORT_USERS_` followed by the option name in uppercase. For example:
+For backward compatibility, these options also support script-specific environment variables:
+- `--host` can also be set with `EXPORT_USERS_HOST`
+- `--token` can also be set with `EXPORT_USERS_TOKEN`
+- `--url` can also be set with `EXPORT_USERS_URL`
+
+The standardized environment variables (`OPENFIRE_*`, `FILEBEAT_*`) take precedence over the script-specific ones (`EXPORT_USERS_*`) when both are set.
+
+Other script-specific options can be provided via environment variables with the prefix `EXPORT_USERS_` followed by the option name in uppercase. For example:
 - `--search` can be set with `EXPORT_USERS_SEARCH`
 - `--insecure` can be set with `EXPORT_USERS_INSECURE`
 - `--dry-run` can be set with `EXPORT_USERS_DRY_RUN`

@@ -185,13 +185,13 @@ def send_to_filebeat(logs: List[Dict[str, Any]], url: Optional[str], host_info: 
     "--host",
     default="https://localhost:9091",
     help="Openfire server URL (e.g., https://localhost:9091)",
-    envvar="OPENFIRE_HOST",
+    envvar=["OPENFIRE_HOST", "EXPORT_SECURITY_LOGS_HOST"],
 )
 @click.option(
     "--token",
     required=True,
     help="API token for authentication",
-    envvar="OPENFIRE_TOKEN",
+    envvar=["OPENFIRE_TOKEN", "EXPORT_SECURITY_LOGS_TOKEN"],
 )
 @click.option(
     "--username",
@@ -223,16 +223,18 @@ def send_to_filebeat(logs: List[Dict[str, Any]], url: Optional[str], host_info: 
     "--insecure/--secure",
     default=False,
     help="Disable SSL certificate validation (for self-signed certificates)",
+    envvar="EXPORT_SECURITY_LOGS_INSECURE",
 )
 @click.option(
     "--url",
     help="URL of the Filebeat HTTP endpoint (if specified, data will be sent to this URL)",
-    envvar="FILEBEAT_URL",
+    envvar=["FILEBEAT_URL", "EXPORT_SECURITY_LOGS_URL"],
 )
 @click.option(
     "--dry-run/--no-dry-run",
     default=False,
     help="Dry run mode: show data that would be sent without actually sending it",
+    envvar="EXPORT_SECURITY_LOGS_DRY_RUN",
 )
 def export_security_logs(
     host: str,
@@ -257,11 +259,21 @@ def export_security_logs(
       --token can be set with OPENFIRE_TOKEN
       --url can be set with FILEBEAT_URL
     
-    Script-specific options can be provided via environment variables with the
+    For backward compatibility, these options also support script-specific environment variables:
+      --host can also be set with EXPORT_SECURITY_LOGS_HOST
+      --token can also be set with EXPORT_SECURITY_LOGS_TOKEN
+      --url can also be set with EXPORT_SECURITY_LOGS_URL
+    
+    The standardized environment variables (OPENFIRE_*, FILEBEAT_*) take precedence over
+    the script-specific ones (EXPORT_SECURITY_LOGS_*) when both are set.
+    
+    Other script-specific options can be provided via environment variables with the
     prefix EXPORT_SECURITY_LOGS_ followed by the option name in uppercase. For example:
       --start-time can be set with EXPORT_SECURITY_LOGS_START_TIME
       --end-time can be set with EXPORT_SECURITY_LOGS_END_TIME
       --since can be set with EXPORT_SECURITY_LOGS_SINCE
+      --insecure can be set with EXPORT_SECURITY_LOGS_INSECURE
+      --dry-run can be set with EXPORT_SECURITY_LOGS_DRY_RUN
     
     Boolean flags like --dry-run can be set with environment variables using true/false values.
     """

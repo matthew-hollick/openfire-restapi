@@ -192,13 +192,13 @@ def send_to_filebeat(users: List[Dict[str, Any]], url: Optional[str], host_info:
     "--host",
     default="https://localhost:9091",
     help="Openfire server URL (e.g., https://localhost:9091)",
-    envvar="OPENFIRE_HOST",
+    envvar=["OPENFIRE_HOST", "EXPORT_USERS_HOST"],
 )
 @click.option(
     "--token",
     required=True,
     help="API token for authentication",
-    envvar="OPENFIRE_TOKEN",
+    envvar=["OPENFIRE_TOKEN", "EXPORT_USERS_TOKEN"],
 )
 @click.option(
     "--search",
@@ -214,7 +214,7 @@ def send_to_filebeat(users: List[Dict[str, Any]], url: Optional[str], host_info:
 @click.option(
     "--url",
     help="URL of the Filebeat HTTP endpoint (if specified, data will be sent to this URL)",
-    envvar="FILEBEAT_URL",
+    envvar=["FILEBEAT_URL", "EXPORT_USERS_URL"],
 )
 @click.option(
     "--dry-run/--no-dry-run",
@@ -262,7 +262,15 @@ def export_users(
       --token can be set with OPENFIRE_TOKEN
       --url can be set with FILEBEAT_URL
     
-    Script-specific options can be provided via environment variables with the
+    For backward compatibility, these options also support script-specific environment variables:
+      --host can also be set with EXPORT_USERS_HOST
+      --token can also be set with EXPORT_USERS_TOKEN
+      --url can also be set with EXPORT_USERS_URL
+    
+    The standardized environment variables (OPENFIRE_*, FILEBEAT_*) take precedence over
+    the script-specific ones (EXPORT_USERS_*) when both are set.
+    
+    Other script-specific options can be provided via environment variables with the
     prefix EXPORT_USERS_ followed by the option name in uppercase. For example:
       --search can be set with EXPORT_USERS_SEARCH
       --insecure can be set with EXPORT_USERS_INSECURE
