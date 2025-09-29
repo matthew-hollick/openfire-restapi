@@ -276,36 +276,43 @@ def send_to_filebeat(rooms: List[Dict[str, Any]], url: Optional[str], host_info:
     "--host",
     default="https://localhost:9091",
     help="Openfire server URL (e.g., https://localhost:9091)",
+    envvar="OPENFIRE_HOST",
 )
 @click.option(
     "--token",
     required=True,
     help="API token for authentication",
+    envvar="OPENFIRE_TOKEN",
 )
 @click.option(
     "--service",
     default="conference",
     help="MUC service name (default: conference)",
+    envvar="EXPORT_MUC_SERVICE",
 )
 @click.option(
     "--type",
     type=click.Choice(["public", "all"]),
     default="public",
     help="Type of rooms to list (public or all)",
+    envvar="EXPORT_MUC_TYPE",
 )
 @click.option(
     "--insecure/--secure",
     default=False,
     help="Disable SSL certificate validation (for self-signed certificates)",
+    envvar="EXPORT_MUC_INSECURE",
 )
 @click.option(
     "--url",
     help="URL of the Filebeat HTTP endpoint (if specified, data will be sent to this URL)",
+    envvar="FILEBEAT_URL",
 )
 @click.option(
     "--dry-run/--no-dry-run",
     default=False,
     help="Dry run mode: show data that would be sent without actually sending it",
+    envvar="EXPORT_MUC_DRY_RUN",
 )
 def export_muc(
     host: str,
@@ -322,14 +329,19 @@ def export_muc(
     This script connects to an Openfire server, retrieves MUC room data, and sends it
     to a Filebeat HTTP endpoint for further processing.
     
-    All command-line options can also be provided via environment variables with the
-    prefix EXPORT_MUC_ followed by the option name in uppercase. For example:
-      --host can be set with EXPORT_MUC_HOST
-      --token can be set with EXPORT_MUC_TOKEN
-      --url can be set with EXPORT_MUC_URL
-      --service can be set with EXPORT_MUC_SERVICE
+    Common command-line options can be provided via standardized environment variables:
+      --host can be set with OPENFIRE_HOST
+      --token can be set with OPENFIRE_TOKEN
+      --url can be set with FILEBEAT_URL
     
-    Boolean flags like --dry-run can be set with EXPORT_MUC_DRY_RUN=true/false.
+    Script-specific options can be provided via environment variables with the
+    prefix EXPORT_MUC_ followed by the option name in uppercase. For example:
+      --service can be set with EXPORT_MUC_SERVICE
+      --type can be set with EXPORT_MUC_TYPE
+      --insecure can be set with EXPORT_MUC_INSECURE
+      --dry-run can be set with EXPORT_MUC_DRY_RUN
+    
+    Boolean flags can be set with environment variables using true/false values.
     """
     try:
         # Handle SSL verification first, before any network clients are created

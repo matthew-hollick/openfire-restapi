@@ -45,12 +45,32 @@ pip install .
 
 ## Documentation
 
+### API Documentation
+
 * [User related](docs/users.md)
 * [Groups related](docs/groups.md)
 * [Chat room related](docs/muc.md)
 * [Session related](docs/sessions.md)
 * [Messages related](docs/messages.md)
 * [System related](docs/system.md)
+
+### Export Scripts
+
+The package includes scripts to export data from Openfire to Filebeat/Elasticsearch:
+
+* [User export](docs/user_export.md)
+* [MUC room export](docs/muc_export.md)
+* [Security logs export](docs/security_logs_export.md)
+
+#### Standardized Environment Variables
+
+All export scripts support these common environment variables:
+
+* `OPENFIRE_HOST`: Openfire server URL (e.g., https://localhost:9091)
+* `OPENFIRE_TOKEN`: API token for authentication
+* `FILEBEAT_URL`: URL of the Filebeat HTTP endpoint
+
+Script-specific options are available via script-specific environment variables.
 
 ## Testing
 

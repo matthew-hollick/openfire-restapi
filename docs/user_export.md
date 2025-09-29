@@ -24,12 +24,20 @@ The user export functionality allows you to export Openfire user data to Filebea
 
 ### Environment Variables
 
-All command-line options can also be provided via environment variables with the prefix `EXPORT_USERS_` followed by the option name in uppercase. For example:
-- `--host` can be set with `EXPORT_USERS_HOST`
-- `--token` can be set with `EXPORT_USERS_TOKEN`
-- `--url` can be set with `EXPORT_USERS_URL`
+Common command-line options can be provided via standardized environment variables:
+- `--host` can be set with `OPENFIRE_HOST`
+- `--token` can be set with `OPENFIRE_TOKEN`
+- `--url` can be set with `FILEBEAT_URL`
 
-Boolean flags like `--dry-run` can be set with `EXPORT_USERS_DRY_RUN=true/false`.
+Script-specific options can be provided via environment variables with the prefix `EXPORT_USERS_` followed by the option name in uppercase. For example:
+- `--search` can be set with `EXPORT_USERS_SEARCH`
+- `--insecure` can be set with `EXPORT_USERS_INSECURE`
+- `--dry-run` can be set with `EXPORT_USERS_DRY_RUN`
+- `--include-rooms` can be set with `EXPORT_USERS_INCLUDE_ROOMS`
+- `--include-sessions` can be set with `EXPORT_USERS_INCLUDE_SESSIONS`
+- `--verbose` can be set with `EXPORT_USERS_VERBOSE`
+
+Boolean flags can be set with environment variables using true/false values.
 
 ## Output Format
 
